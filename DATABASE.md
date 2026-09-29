@@ -6,10 +6,26 @@
 - Quantità
 - Prezzo Carico
 - Prezzo Attuale
+ 
 - Cedola %
+ 
+- Frequenza Cedola
+- Annuale
+- Semestrale
+- Trimestrale
+- Mensile
+ 
+- Data Prima Cedola
+- Data Prossima Cedola
+- Data Ultima Cedola
+ 
 - Data Acquisto
 - Data Scadenza
  
+- Valuta
+- Rating
+
+ 
 ## CERTIFICATES
  
 - ISIN
