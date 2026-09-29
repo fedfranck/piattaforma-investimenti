@@ -56,3 +56,45 @@ Classificazione:
 - Monitorare
 - Candidato rotazione
 ``
+### Regole di Rotazione
+ 
+Regola 1
+ 
+SE
+ 
+Plusvalenza % > 10%
+ 
+ALLORA
+ 
+Bond candidato alla rotazione
+ 
+### Obiettivo Cedolare
+ 
+La piattaforma deve calcolare:
+ 
+- Flusso cedolare annuo teorico totale
+- Flusso cedolare già incassato
+- Flusso cedolare residuo atteso
+ 
+Indicatore:
+ 
+Flusso realizzato %
+ 
+= Cedole incassate / Cedole teoriche
+ 
+### Certificates
+ 
+- Analisi sottostanti
+- Calcolo distanza da barriera
+- Valutazione rischio cedola
+ 
+### Rotazione Portafoglio
+ 
+- Individuazione strumenti da sostituire
+- Ricerca strumenti alternativi
+- Simulazione incremento flusso cedolare
+ 
+### Ribilanciamento
+ 
+- Controllo allocazione
+- Proposte di riequilibrio
