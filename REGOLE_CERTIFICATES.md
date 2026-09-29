@@ -1,5 +1,22 @@
 Regole Certificates
  
+# Calcolo Distanza Barriera
+ 
+Formula:
+ 
+Distanza Barriera (%) =
+(Prezzo Attuale - Barriera) / Prezzo Attuale * 100
+ 
+Esempio:
+ 
+Prezzo Attuale = 20
+ 
+Barriera = 14
+ 
+Distanza = (20 - 14) / 20 * 100
+ 
+Distanza = 30%
+
 ## Regola 1
  
 Distanza barriera > 30%
@@ -29,3 +46,4 @@ CRITICO
 Peggioramento del Worst Of
  
 Generare Alert
+
