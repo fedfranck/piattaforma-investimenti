@@ -43,7 +43,7 @@
 - Distanza Barriera Cedolare
 - Distanza Barriera Capitale
 - Probabilità Cedola
- 
+
 ## Classificazione
  
 - Sicuro
