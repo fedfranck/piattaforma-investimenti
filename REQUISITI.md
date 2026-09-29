@@ -37,3 +37,22 @@ Gestire in modo automatizzato e supervisionato un portafoglio composto da:
  
 - Controllo allocazione
 - Proposte di riequilibrio
+
+## Analisi Bond
+ 
+Per ogni bond la piattaforma deve calcolare:
+ 
+- Valore investito
+- Valore attuale
+- Plusvalenza
+- Plusvalenza %
+- Cedola annua teorica
+- Yield attuale
+- Giorni alla scadenza
+ 
+Classificazione:
+ 
+- Mantenere
+- Monitorare
+- Candidato rotazione
+``
