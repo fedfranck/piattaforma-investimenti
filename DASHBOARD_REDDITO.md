@@ -1,3 +1,19 @@
+# Asset Allocation
+ 
+Valore Totale Portafoglio
+ 
+Valore Liquidità
+ 
+Valore Bond
+ 
+Valore Certificates
+ 
+Percentuale Liquidità
+ 
+Percentuale Bond
+ 
+Percentuale Certificates
+
 # Dashboard Reddito
 
 ## KPI Principali
