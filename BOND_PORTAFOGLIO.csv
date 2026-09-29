@@ -1,1 +1,1 @@
-ISIN,Descrizione,Quantita,Prezzo_Carico,Prezzo_Attuale,Cedola,Scadenza
+ISIN,Descrizione,Emittente,Valuta,Quantita_Nominale,Prezzo_Carico,Prezzo_Attuale,Cedola_Percentuale,Frequenza_Cedola,Data_Acquisto,Data_Prossima_Cedola,Data_Scadenza,Rating
