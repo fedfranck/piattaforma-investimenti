@@ -41,3 +41,17 @@ MONITORARE
 >40 punti
 =
 CANDIDATO ROTAZIONE
+
+## Score di Uscita
+ 
+Plusvalenza > 10% = +30
+ 
+Plusvalenza > 20% = +50
+ 
+Scadenza inferiore a 2 anni = +20
+ 
+Yield inferiore al rendimento medio portafoglio = +20
+ 
+Rating peggiorato = +30
+``
+Mostra più linee
