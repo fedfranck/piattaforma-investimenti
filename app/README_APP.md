@@ -1,27 +1,42 @@
-# Home Dashboard
+# Dashboard Principale
 
-## Riga 1
+Filtro:
+
+[ Tutti ]
+[ Francesco ]
+[ Serafina ]
+[ Ida ]
+
+--------------------------------------------------
 
 Patrimonio Totale
 
-Flusso Cedolare
-
 Liquidità
 
-Performance
+Flusso Cedolare Teorico
 
-## Riga 2
+Flusso Cedolare Incassato
 
-Grafico Asset Allocation
+--------------------------------------------------
 
-Grafico Equity Curve
+Asset Allocation
 
-## Riga 3
+- Bond %
+- Certificates %
+- Liquidità %
 
-Bond da Monitorare
+--------------------------------------------------
 
-Certificates da Monitorare
+Grafico Patrimonio
 
-## Riga 4
+--------------------------------------------------
+
+Grafico Flussi Cedolari
+
+--------------------------------------------------
 
 Proposte di Rotazione
+
+--------------------------------------------------
+
+Alert
