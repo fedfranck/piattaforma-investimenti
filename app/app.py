@@ -15,6 +15,7 @@ from calcoli import (
     enrich_bonds, enrich_certificates, portfolio_kpis,
     coupon_forecast, bond_rotation_candidates, certificate_alerts
 )
+from reinvestment import reinvestment_candidates
 
 st.set_page_config(page_title="Piattaforma Investimenti", page_icon="📊", layout="wide")
 
@@ -455,19 +456,44 @@ with t3:
         cols = ["ISIN","Descrizione","Prezzo_Attuale","Worst_Of","Distanza_Barriera_Cedolare",
                 "Distanza_Barriera_Capitale","Classificazione"]
         st.dataframe(certs[[c for c in cols if c in certs.columns]], use_container_width=True, hide_index=True)
-
 with t4:
     st.subheader("Flussi cedolari")
+
     st.metric("Flusso annuo teorico", f"€ {kpis['annual_coupon']:,.2f}")
+
     if not forecast.empty:
-        forecast2=forecast.copy()
-        forecast2["Mese"]=forecast2["Data"].dt.to_period("M").astype(str)
-        monthly=forecast2.groupby("Mese",as_index=False)["Importo_Netto_Stimato"].sum()
-        st.bar_chart(monthly.set_index("Mese"))
-        st.dataframe(forecast, use_container_width=True, hide_index=True)
+        forecast2 = forecast.copy()
+        ...
     else:
         st.info("Calendario cedole non ancora valorizzato.")
 
+    st.divider()
+    st.subheader("Simulazione reinvestimento cedole")
+
+    reinvest_amount = st.number_input(
+          "Importo disponibile da reinvestire (€)",
+          min_value=0.0,
+          value=1000.0,
+          step=100.0
+      )
+
+    if st.button("Calcola opportunità reinvestimento"):
+          suggestions = reinvestment_candidates(
+              catalog,
+              reinvest_amount
+          )
+
+          if suggestions.empty:
+              st.warning(
+                  "Nessun titolo disponibile nel catalogo."
+              )
+          else:
+              st.dataframe(
+                  suggestions,
+                  use_container_width=True,
+                  hide_index=True
+              )
+ 
 with t5:
     st.subheader("Proposte di rotazione Bond")
 
