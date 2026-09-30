@@ -248,43 +248,119 @@ st.divider()
 t1,t2,t3,t4,t5,t6 = st.tabs(["Dashboard","Bond","Certificates","Cedole","Rotazioni","Dati"])
 
 with t1:
-    a,b,c = st.columns(3)
-    a.metric("Flusso cedolare annuo Bond", f"€ {kpis['annual_coupon']:,.2f}")
-    b.metric("Cedole incassate", f"€ {kpis['coupons_received']:,.2f}")
-    c.metric("Flusso residuo stimato", f"€ {max(kpis['annual_coupon']-kpis['coupons_received'],0):,.2f}")
+    a, b, c = st.columns(3)
+    a.metric(
+        "Flusso cedolare annuo Bond",
+        f"€ {kpis['annual_coupon']:,.2f}"
+    )
+    b.metric(
+        "Cedole incassate",
+        f"€ {kpis['coupons_received']:,.2f}"
+    )
+    c.metric(
+        "Flusso residuo stimato",
+        f"€ {max(kpis['annual_coupon'] - kpis['coupons_received'], 0):,.2f}"
+    )
 
     st.subheader("Asset allocation")
+
     alloc = pd.DataFrame({
-        "Asset": ["Bond","Certificates","Liquidità"],
-        "Valore": [kpis["bond_value"], kpis["cert_value"], kpis["liquidity"]]
+        "Asset": ["Bond", "Certificates", "Liquidità"],
+        "Valore": [
+            kpis["bond_value"],
+            kpis["cert_value"],
+            kpis["liquidity"]
+        ]
     })
+
+    if kpis["patrimonio"] > 0:
+        alloc["% Patrimonio"] = (
+            alloc["Valore"] / kpis["patrimonio"] * 100
+        )
+    else:
+        alloc["% Patrimonio"] = 0
+
     st.bar_chart(alloc.set_index("Asset"))
+
+    alloc_display = alloc.copy()
+    alloc_display["Valore"] = alloc_display["Valore"].map(
+        lambda x: f"€ {x:,.2f}"
+    )
+    alloc_display["% Patrimonio"] = alloc_display["% Patrimonio"].map(
+        lambda x: f"{x:.2f}%"
+    )
+
+    st.dataframe(
+        alloc_display,
+        use_container_width=True,
+        hide_index=True
+    )
 
     st.subheader("Prossime cedole")
     if forecast.empty:
-        st.info("Nessuna cedola futura disponibile nel calendario. Le date presenti nei Bond possono essere usate per generare il calendario.")
+        st.info(
+            "Nessuna cedola futura disponibile nel calendario. "
+            "Le date presenti nei Bond possono essere usate "
+            "per generare il calendario."
+        )
     else:
-        st.dataframe(forecast.head(20), use_container_width=True, hide_index=True)
+        st.dataframe(
+            forecast.head(20),
+            use_container_width=True
+        )
 
     st.subheader("Alert")
     for x in bond_rotation_candidates(bonds):
-        st.warning(f"Bond candidato alla rotazione: {x['ISIN']} — score {x['score']}")
+        st.warning(
+            f"Bond candidato alla rotazione: "
+            f"{x['ISIN']} — score {x['score']}"
+        )
     for x in certificate_alerts(certs):
         st.error(f"Certificate: {x}")
-
 with t2:
     st.subheader("Portafoglio Bond")
+
     if bonds.empty:
         st.info("Nessun Bond presente.")
     else:
-        cols = ["ISIN","Descrizione","Valore_Carico","Valore_Attuale","Plusvalenza","Plusvalenza_Percentuale",
-                "Cedola_Percentuale","Cedola_Netta_Annua","Yield_On_Cost","Giorni_Scadenza","Score_Uscita","Classificazione"]
-        st.dataframe(bonds[[c for c in cols if c in bonds.columns]], use_container_width=True, hide_index=True)
+        cols = [
+            "ISIN",
+            "Descrizione",
+            "Valore_Carico",
+            "Valore_Attuale",
+            "Plusvalenza",
+            "Plusvalenza_Percentuale",
+            "Cedola_Percentuale",
+            "Cedola_Netta_Annua",
+            "Yield_On_Cost",
+            "Giorni_Scadenza",
+            "Score_Uscita",
+            "Classificazione"
+        ]
+
+        st.dataframe(
+            bonds[[c for c in cols if c in bonds.columns]],
+            use_container_width=True,
+            hide_index=True
+        )
 
         st.subheader("Dettaglio scoring")
-        if not bonds.empty:
-            st.dataframe(bonds[["ISIN","Plusvalenza_Percentuale","Giorni_Scadenza","Yield_On_Cost","Score_Uscita","Classificazione"]], use_container_width=True, hide_index=True)
 
+        if not bonds.empty:
+            st.dataframe(
+                bonds[
+                    [
+                        "ISIN",
+                        "Plusvalenza_Percentuale",
+                        "Giorni_Scadenza",
+                        "Yield_On_Cost",
+                        "Score_Uscita",
+                        "Classificazione"
+                    ]
+                ],
+                use_container_width=True,
+                hide_index=True
+            )
 with t3:
     st.subheader("Certificates")
     if certs.empty:
