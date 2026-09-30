@@ -1,1 +1,1 @@
-Conto,ISIN,Descrizione,Emittente,Valuta,Quantita_Nominale,Prezzo_Carico,Prezzo_Attuale,Cedola_Percentuale,Frequenza_Cedola,Data_Acquisto,Data_Prossima_Cedola,Data_Scadenza,Rating
+Titolare,ISIN,Descrizione,Emittente,Quantita,Prezzo_Carico,Prezzo_Attuale,Importo_Cedola,Frequenza_Cedola,Barriera_Cedolare,Barriera_Capitale,Data_Prossima_Osservazione,Data_Scadenza
