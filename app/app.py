@@ -209,6 +209,18 @@ if not bonds.empty and "Giorni_Scadenza" in bonds.columns:
         ],
         default="> 10 anni"
     )
+
+# Percentuale di ogni posizione sul portafoglio Bond
+if not bonds.empty and "Valore_Attuale_Calc" in bonds.columns:
+    if bonds["Valore_Attuale_Calc"].sum() > 0:
+        bonds["% Portafoglio Bond"] = (
+            bonds["Valore_Attuale_Calc"]
+            / bonds["Valore_Attuale_Calc"].sum()
+            * 100
+        )
+    else:
+        bonds["% Portafoglio Bond"] = 0
+
 certs = enrich_certificates(certs, underlyings)
 kpis = portfolio_kpis(bonds, certs, liquidity)
 # Keep the operational SQLite snapshot aligned with the current CSV sources.
@@ -374,116 +386,64 @@ with t2:
             hide_index=True
         )
 
-        st.subheader("Dettaglio scoring")
+st.subheader("Dettaglio scoring")
 
-        if not bonds.empty:
-            st.dataframe(
-                bonds[
-                    [
-                        "ISIN",
-                        "Plusvalenza_Percentuale",
-                        "Giorni_Scadenza",
-                        "Yield_On_Cost",
-                        "Score_Uscita",
-                        "Classificazione"
-                    ]
-                ],
-                use_container_width=True,
-                hide_index=True
-            )
-        st.subheader("Concentrazione per emittente")
+if not bonds.empty:
+    scoring_cols = [
+        "ISIN",
+        "Plusvalenza_Percentuale",
+        "Giorni_Scadenza",
+        "Yield_On_Cost",
+        "Score_Uscita",
+        "Classificazione",
+        "% Portafoglio Bond"
+    ]
 
-        if "Emittente" in bonds.columns and not bonds.empty:
-            issuer_analysis = (
-                bonds.groupby(
-                    "Emittente",
-                    as_index=False
-                )["Valore_Attuale_Calc"]
-                .sum()
-                .rename(
-                    columns={
-                        "Valore_Attuale_Calc": "Valore"
-                    }
-                )
-            )
+    st.dataframe(
+        bonds[
+            [c for c in scoring_cols if c in bonds.columns]
+        ],
+        use_container_width=True,
+        hide_index=True
+    )
 
-            if kpis["bond_value"] > 0:
-                issuer_analysis["% Bond"] = (
-                    issuer_analysis["Valore"]
-                    / kpis["bond_value"]
-                    * 100
-                )
-            else:
-                issuer_analysis["% Bond"] = 0
+st.subheader("Concentrazione per emittente")
 
-            issuer_analysis = issuer_analysis.sort_values(
-                "Valore",
-                ascending=False
-            )
+if "Emittente" in bonds.columns and not bonds.empty:
+    issuer_analysis = (
+        bonds.groupby(
+            "Emittente",
+            as_index=False
+        )["Valore_Attuale_Calc"]
+        .sum()
+        .rename(
+            columns={
+                "Valore_Attuale_Calc": "Valore"
+            }
+        )
+    )
 
-            st.dataframe(
-                issuer_analysis,
-                use_container_width=True,
-                hide_index=True
-            )
-        else:
-            st.info("Dati emittente non disponibili.")
+    if kpis["bond_value"] > 0:
+        issuer_analysis["% Bond"] = (
+            issuer_analysis["Valore"]
+            / kpis["bond_value"]
+            * 100
+        )
+    else:
+        issuer_analysis["% Bond"] = 0
 
-        st.subheader("Concentrazione per scadenza")
+    issuer_analysis = issuer_analysis.sort_values(
+        "Valore",
+        ascending=False
+    )
 
-        if "Fascia_Scadenza" in bonds.columns and not bonds.empty:
-            maturity_analysis = (
-                bonds.groupby(
-                    "Fascia_Scadenza",
-                    as_index=False
-                )["Valore_Attuale_Calc"]
-                .sum()
-                .rename(
-                    columns={
-                        "Valore_Attuale_Calc": "Valore"
-                    }
-                )
-            )
-
-            if kpis["bond_value"] > 0:
-                maturity_analysis["% Bond"] = (
-                    maturity_analysis["Valore"]
-                    / kpis["bond_value"]
-                    * 100
-                )
-            else:
-                maturity_analysis["% Bond"] = 0
-
-            maturity_order = [
-                "< 2 anni",
-                "2–5 anni",
-                "5–10 anni",
-                "> 10 anni"
-            ]
-
-            maturity_analysis["Ordine"] = (
-                maturity_analysis["Fascia_Scadenza"]
-                .map(
-                    {
-                        fascia: i
-                        for i, fascia in enumerate(maturity_order)
-                    }
-                )
-            )
-
-            maturity_analysis = (
-                maturity_analysis
-                .sort_values("Ordine")
-                .drop(columns=["Ordine"])
-            )
-
-            st.dataframe(
-                maturity_analysis,
-                use_container_width=True,
-                hide_index=True
-            )
-        else:
-            st.info("Dati scadenza non disponibili.")
+    st.dataframe(
+        issuer_analysis,
+        use_container_width=True,
+        hide_index=True
+    )
+else:
+    st.info("Dati emittente non disponibili.")
 with t3:
     st.subheader("Certificates")
     if certs.empty:
