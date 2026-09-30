@@ -1,4 +1,4 @@
-Titolare,Conto,ISIN,Descrizione,Valuta,Quantita_Nominale,Prezzo_Carico,Cedola_Percentuale,Frequenza_Cedola,Data_Prossima_Cedola,Data_Scadenza,Cedola_Netta_Annua,Prezzo_Attuale,Valore_Attuale
+Titolare,Conto,ISIN,Descrizione,Valuta,Quantita_Nominale,Prezzo_Carico,Cedola_Percentuale,Frequenza_Cedola,Data_Prossima_Cedola,Data_Scadenza,Cedola_Netta_Annua
 SERAFINA,Mediobanca,IT0005544082,BTP 4.35% 2033,EUR,15000,99.9573,4.35,Semestrale,2026-11-01,2033-11-01,570.94
 SERAFINA,Mediobanca,IT0005530032,BTP 4.45% 2043,EUR,14000,94.9767,4.45,Semestrale,2027-03-01,2043-09-01,545.13
 SERAFINA,Mediobanca,IT0004923998,BTP 4.75% 2044,EUR,17000,93.5050,4.75,Semestrale,2027-03-01,2044-09-01,706.56
