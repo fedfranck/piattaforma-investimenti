@@ -276,20 +276,267 @@ def coupon_forecast(bonds, coupons):
                          "Stato":"PREVISTA"})
     return pd.DataFrame(rows).sort_values("Data") if rows else pd.DataFrame()
 
-def bond_rotation_candidates(bonds):
-    if bonds.empty: return []
-    out=[]
-    for _,r in bonds.iterrows():
-        score=float(r.get("Score_Uscita",0))
-        if score>20:
+def bond_rotation_candidates(bonds, catalog=None):
+    if bonds.empty:
+        return []
+
+    out = []
+
+    if catalog is None or catalog.empty:
+        return []
+
+    catalog = catalog.copy()
+
+    # Normalizzazione dei campi numerici del catalogo
+    for col in ["Prezzo", "Yield", "Cedola", "Duration"]:
+        if col in catalog.columns:
+            catalog[col] = pd.to_numeric(
+                catalog[col],
+                errors="coerce"
+            )
+
+    if "Scadenza" in catalog.columns:
+        catalog["Scadenza"] = pd.to_datetime(
+            catalog["Scadenza"],
+            errors="coerce"
+        )
+
+    for _, r in bonds.iterrows():
+
+        score = float(r.get("Score_Uscita", 0))
+
+        if score <= 20:
+            continue
+
+        current_isin = str(r.get("ISIN", ""))
+
+        # Recupera il rendimento a scadenza (YTM)
+        # del Bond attualmente posseduto dal catalogo
+        current_yield = 0.0
+
+        if "Yield" in catalog.columns:
+            current_match = catalog[
+                catalog["ISIN"].astype(str) == current_isin
+            ]
+
+            if not current_match.empty:
+                current_yield = float(
+                    current_match.iloc[0]["Yield"]
+                )
+        current_duration = float(
+            r.get("Duration", np.nan)
+        )
+
+        current_maturity = pd.to_datetime(
+            r.get("Data_Scadenza"),
+            errors="coerce"
+        )
+
+        # Esclude il Bond attualmente posseduto
+        candidates = catalog[
+            catalog["ISIN"].astype(str) != current_isin
+        ].copy()
+        # Il sostituto non deve avere un rating inferiore
+        current_rating = ""
+
+        if "Rating" in catalog.columns:
+            current_match = catalog[
+                catalog["ISIN"].astype(str) == current_isin
+            ]
+
+            if not current_match.empty:
+                current_rating = str(
+                    current_match.iloc[0]["Rating"]
+                ).strip()
+
+        if current_rating in {
+            "AAA", "AA+", "AA", "AA-",
+            "A+", "A", "A-",
+            "BBB+", "BBB", "BBB-",
+            "BB+", "BB", "BB-",
+            "B+", "B", "B-"
+        }:
+
+            rating_order = {
+                "AAA": 1,
+                "AA+": 2,
+                "AA": 3,
+                "AA-": 4,
+                "A+": 5,
+                "A": 6,
+                "A-": 7,
+                "BBB+": 8,
+                "BBB": 9,
+                "BBB-": 10,
+                "BB+": 11,
+                "BB": 12,
+                "BB-": 13,
+                "B+": 14,
+                "B": 15,
+                "B-": 16
+            }
+
+            candidates["Rating_Score"] = (
+                candidates["Rating"]
+                .astype(str)
+                .str.strip()
+                .map(rating_order)
+            )
+
+            candidates = candidates[
+                candidates["Rating_Score"].notna()
+                & (
+                    candidates["Rating_Score"]
+                    <= rating_order[current_rating]
+                )
+            ]
+        
+        # Elimina candidati senza dati fondamentali
+        required_cols = ["Yield", "Duration", "Scadenza"]
+
+        available_required = [
+            c for c in required_cols
+            if c in candidates.columns
+        ]
+
+        if available_required:
+            candidates = candidates.dropna(
+                subset=available_required
+            )
+
+        if candidates.empty:
             out.append({
-                "ISIN":r.get("ISIN"),"Descrizione":r.get("Descrizione"),
-                "Plusvalenza %":round(float(r.get("Plusvalenza_Percentuale_Calc",0)),2),
-                "Yield On Cost %":round(float(r.get("Yield_On_Cost",0)),2),
-                "Giorni Scadenza":int(r.get("Giorni_Scadenza",0)) if pd.notna(r.get("Giorni_Scadenza")) else None,
-                "score":int(score),"Classificazione":r.get("Classificazione")
+                "ISIN": current_isin,
+                "Descrizione": r.get("Descrizione"),
+                "Plusvalenza %": round(
+                    float(r.get("Plusvalenza_Percentuale_Calc", 0)),
+                    2
+                ),
+                "Yield On Cost %": round(
+                    current_yield,
+                    2
+                ),
+                "Giorni Scadenza": int(
+                    r.get("Giorni_Scadenza", 0)
+                ) if pd.notna(r.get("Giorni_Scadenza")) else None,
+                "score": int(score),
+                "Classificazione": r.get("Classificazione"),
+                "Bond Sostitutivo": None,
+                "Motivo": "Nessun candidato con Yield superiore"
             })
-    return sorted(out,key=lambda x:x["score"],reverse=True)
+            continue
+
+        # Differenza temporale dalla scadenza attuale
+        if pd.notna(current_maturity):
+            candidates["Diff_Scadenza_Anni"] = (
+                (
+                    candidates["Scadenza"]
+                    - current_maturity
+                ).abs()
+                .dt.days
+                / 365.25
+            )
+        else:
+            candidates["Diff_Scadenza_Anni"] = 999
+
+        # Differenza di Duration
+        if pd.notna(current_duration):
+            candidates["Diff_Duration"] = (
+                candidates["Duration"]
+                - current_duration
+            ).abs()
+        else:
+            candidates["Diff_Duration"] = 999
+
+        # Miglioramento del rendimento
+        candidates["Delta_Yield"] = (
+            candidates["Yield"]
+            - current_yield
+        )
+
+        # Scomposizione dello score del candidato
+        candidates["Score_Yield_Candidato"] = (
+            candidates["Delta_Yield"] * 10
+        )
+
+        candidates["Penalita_Scadenza"] = (
+            candidates["Diff_Scadenza_Anni"]
+        )
+
+        candidates["Penalita_Duration"] = (
+            candidates["Diff_Duration"] * 2
+        )
+
+        candidates["Score_Candidato"] = (
+            candidates["Score_Yield_Candidato"]
+            - candidates["Penalita_Scadenza"]
+            - candidates["Penalita_Duration"]
+        )
+
+        best = candidates.sort_values(
+            "Score_Candidato",
+            ascending=False
+        ).iloc[0]
+
+        out.append({
+            "ISIN": current_isin,
+            "Descrizione": r.get("Descrizione"),
+            "Plusvalenza %": round(
+                float(r.get("Plusvalenza_Percentuale_Calc", 0)),
+                2
+            ),
+            "Yield On Cost %": round(
+                current_yield,
+                2
+            ),
+            "Giorni Scadenza": int(
+                r.get("Giorni_Scadenza", 0)
+            ) if pd.notna(r.get("Giorni_Scadenza")) else None,
+            "score": int(score),
+            "Classificazione": r.get("Classificazione"),
+            "Bond Sostitutivo": best.get("ISIN"),
+            "Descrizione Sostitutivo": best.get("Descrizione"),
+            "Yield Sostitutivo": round(
+                float(best.get("Yield")),
+                2
+            ),
+            "Duration Sostitutivo": round(
+                float(best.get("Duration")),
+                2
+            ),
+            "Scadenza Sostitutivo": best.get(
+                "Scadenza"
+            ).strftime("%Y-%m-%d"),
+
+            "Delta Yield": round(
+                float(best.get("Delta_Yield")),
+                2
+            ),
+            "Score Yield Candidato": round(
+                float(best.get("Score_Yield_Candidato")),
+                2
+            ),
+            "Penalita Scadenza": round(
+                float(best.get("Penalita_Scadenza")),
+                2
+            ),
+            "Penalita Duration": round(
+                float(best.get("Penalita_Duration")),
+                2
+            ),
+            "Score_Candidato": round(
+                float(best.get("Score_Candidato")),
+                2
+            )
+
+        })
+
+    return sorted(
+        out,
+        key=lambda x: x["score"],
+        reverse=True
+    )
+
 
 def certificate_alerts(certs):
     if certs.empty: return []
