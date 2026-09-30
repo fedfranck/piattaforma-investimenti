@@ -395,23 +395,14 @@ with t2:
 
         if "Emittente" in bonds.columns and not bonds.empty:
             issuer_analysis = (
-                bonds.groupby(
-                    "Emittente",
-                    as_index=False
-                )["Valore_Attuale_Calc"]
+                bonds.groupby("Emittente", as_index=False)["Valore_Attuale_Calc"]
                 .sum()
-                .rename(
-                    columns={
-                        "Valore_Attuale_Calc": "Valore"
-                    }
-                )
+                .rename(columns={"Valore_Attuale_Calc": "Valore"})
             )
 
             if kpis["bond_value"] > 0:
                 issuer_analysis["% Bond"] = (
-                    issuer_analysis["Valore"]
-                    / kpis["bond_value"]
-                    * 100
+                    issuer_analysis["Valore"] / kpis["bond_value"] * 100
                 )
             else:
                 issuer_analysis["% Bond"] = 0
@@ -425,13 +416,10 @@ with t2:
                 issuer_analysis,
                 use_container_width=True,
                 hide_index=True
-            )
+           
         else:
-            st.info("Dati emittente non disponibili.")
-
-        st.subheader("Concentrazione per scadenza")
-
-        if "Fascia_Scadenza" in bonds.columns and not bonds.empty:
+            st.info("Dati emittente non disponibili.")          
+if "Fascia_Scadenza" in bonds.columns and not bonds.empty:
             maturity_analysis = (
                 bonds.groupby(
                     "Fascia_Scadenza",
@@ -442,8 +430,7 @@ with t2:
                     columns={
                         "Valore_Attuale_Calc": "Valore"
                     }
-                )
-            )
+                         )
 
             if kpis["bond_value"] > 0:
                 maturity_analysis["% Bond"] = (
@@ -458,33 +445,8 @@ with t2:
                 "< 2 anni",
                 "2–5 anni",
                 "5–10 anni",
-                "> 10 anni"
-            ]
-
-            maturity_analysis["Ordine"] = (
-                maturity_analysis["Fascia_Scadenza"]
-                .map(
-                    {
-                        fascia: i
-                        for i, fascia in enumerate(maturity_order)
-                    }
-                )
-            )
-
-            maturity_analysis = (
-                maturity_analysis
-                .sort_values("Ordine")
-                .drop(columns=["Ordine"])
-            )
-
-            st.dataframe(
-                maturity_analysis,
-                use_container_width=True,
-                hide_index=True
-            )
-        else:
-            st.info("Dati scadenza non disponibili.")
-with t3:
+     
+    with t3:
     st.subheader("Certificates")
     if certs.empty:
         st.info("Il file data/CERTIFICATES_PORTAFOGLIO.csv è attualmente vuoto. Inserisci le posizioni per attivare l'analisi.")
