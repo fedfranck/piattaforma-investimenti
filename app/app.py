@@ -471,7 +471,7 @@ with t4:
 with t5:
     st.subheader("Proposte di rotazione Bond")
 
-    proposals = bond_rotation_candidates(bonds)
+    proposals = bond_rotation_candidates(bonds, catalog)
 
     if not proposals:
         st.success(
