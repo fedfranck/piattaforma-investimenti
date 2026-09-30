@@ -1,42 +1,28 @@
-# Dashboard Principale
+# V1 App
 
-Filtro:
+## Avvio locale
 
-[ Tutti ]
-[ Francesco ]
-[ Serafina ]
-[ Ida ]
+Dalla root del repository:
 
---------------------------------------------------
+```bash
+python -m venv .venv
+# Windows:
+.venv\Scripts\activate
+# macOS/Linux:
+source .venv/bin/activate
 
-Patrimonio Totale
+pip install -r requirements.txt
+streamlit run app/app.py
+```
 
-Liquidità
+Il browser aprirà la dashboard locale.
 
-Flusso Cedolare Teorico
+## Deploy con Streamlit Community Cloud
 
-Flusso Cedolare Incassato
+1. Pubblica la repository su GitHub.
+2. Vai su Streamlit Community Cloud.
+3. Crea una nuova app indicando repository, branch e file:
+   `app/app.py`
+4. Le dipendenze vengono installate da `requirements.txt`.
 
---------------------------------------------------
-
-Asset Allocation
-
-- Bond %
-- Certificates %
-- Liquidità %
-
---------------------------------------------------
-
-Grafico Patrimonio
-
---------------------------------------------------
-
-Grafico Flussi Cedolari
-
---------------------------------------------------
-
-Proposte di Rotazione
-
---------------------------------------------------
-
-Alert
+I CSV sono letti dalla cartella `data/`. La V1 non modifica automaticamente i CSV.
