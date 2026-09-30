@@ -390,14 +390,17 @@ st.subheader("Dettaglio scoring")
 
 if not bonds.empty:
     scoring_cols = [
-        "ISIN",
-        "Plusvalenza_Percentuale",
-        "Giorni_Scadenza",
-        "Yield_On_Cost",
-        "Score_Uscita",
-        "Classificazione",
-        "% Portafoglio Bond"
-    ]
+    "ISIN",
+    "Plusvalenza_Percentuale",
+    "Giorni_Scadenza",
+    "Yield_On_Cost",
+    "Score_Plusvalenza",
+    "Score_Scadenza",
+    "Score_Yield",
+    "Score_Uscita",
+    "Classificazione",
+    "% Portafoglio Bond"
+]
 
     st.dataframe(
         bonds[

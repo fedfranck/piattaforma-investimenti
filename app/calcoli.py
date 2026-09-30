@@ -26,11 +26,41 @@ def enrich_bonds(df):
     y=df["Yield_On_Cost"]
     p=df["Plusvalenza_Percentuale_Calc"]
     d=df["Giorni_Scadenza"]
-    score=np.where(p>20,50,np.where(p>10,30,np.where(p>5,10,0)))
-    score += np.where(d<730,20,np.where(d<1825,10,0))
-    score += np.where(y<3,20,np.where(y<5,10,0))
-    df["Score_Uscita"]=score
-    df["Classificazione"]=np.where(score>40,"CANDIDATO ROTAZIONE",np.where(score>=21,"MONITORARE","MANTENERE"))
+
+    # Scomposizione dello score di uscita
+    df["Score_Plusvalenza"] = np.where(
+        p > 20,
+        50,
+        np.where(p > 10, 30, np.where(p > 5, 10, 0))
+    )
+
+    df["Score_Scadenza"] = np.where(
+        d < 730,
+        20,
+        np.where(d < 1825, 10, 0)
+    )
+
+    df["Score_Yield"] = np.where(
+        y < 3,
+        20,
+        np.where(y < 5, 10, 0)
+    )
+
+    df["Score_Uscita"] = (
+        df["Score_Plusvalenza"]
+        + df["Score_Scadenza"]
+        + df["Score_Yield"]
+    )
+
+    df["Classificazione"] = np.where(
+        df["Score_Uscita"] > 40,
+        "CANDIDATO ROTAZIONE",
+        np.where(
+            df["Score_Uscita"] >= 21,
+            "MONITORARE",
+            "MANTENERE"
+        )
+    )
     return df
 
 def _barrier_distance(price, barrier):
