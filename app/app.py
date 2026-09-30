@@ -23,6 +23,20 @@ def load_data():
 
 bonds, certs, underlyings, coupons, catalog, liquidity, holders = load_data()
 
+# Completa il portafoglio Bond con l'emittente presente nel catalogo
+if "Emittente" not in bonds.columns and not catalog.empty:
+    if "ISIN" in bonds.columns and "ISIN" in catalog.columns and "Emittente" in catalog.columns:
+        issuer_map = (
+            catalog[["ISIN", "Emittente"]]
+            .drop_duplicates("ISIN")
+        )
+
+        bonds = bonds.merge(
+            issuer_map,
+            on="ISIN",
+            how="left"
+        )
+        
 st.title("📊 Piattaforma Investimenti")
 st.caption("V1 operativa — dati locali CSV, calcoli automatici e motore di rotazione supervisionato")
 
@@ -361,6 +375,34 @@ with t2:
                 use_container_width=True,
                 hide_index=True
             )
+        st.subheader("Concentrazione per emittente")
+
+        if "Emittente" in bonds.columns and not bonds.empty:
+            issuer_analysis = (
+                bonds.groupby("Emittente", as_index=False)["Valore_Attuale_Calc"]
+                .sum()
+                .rename(columns={"Valore_Attuale_Calc": "Valore"})
+            )
+
+            if kpis["bond_value"] > 0:
+                issuer_analysis["% Bond"] = (
+                    issuer_analysis["Valore"] / kpis["bond_value"] * 100
+                )
+            else:
+                issuer_analysis["% Bond"] = 0
+
+            issuer_analysis = issuer_analysis.sort_values(
+                "Valore",
+                ascending=False
+            )
+
+            st.dataframe(
+                issuer_analysis,
+                use_container_width=True,
+                hide_index=True
+            )
+        else:
+            st.info("Dati emittente non disponibili.")          
 with t3:
     st.subheader("Certificates")
     if certs.empty:
