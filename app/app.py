@@ -44,6 +44,50 @@ csv_files = {
     "Titolari": ROOT / "data" / "TITOLARI.csv",
 }
 
+required_columns = {
+    "Bond portafoglio": [
+        "Titolare",
+        "ISIN",
+        "Quantita_Nominale",
+        "Prezzo_Attuale",
+    ],
+    "Certificates portafoglio": [
+        "ISIN",
+        "Descrizione",
+        "Quantita",
+        "Prezzo_Attuale",
+    ],
+    "Sottostanti certificates": [
+        "ISIN_CERTIFICATE",
+        "Sottostante",
+        "Ticker",
+        "Strike",
+        "Barriera",
+    ],
+    "Calendario cedole": [
+        "ISIN",
+        "Data_Cedola",
+        "Importo_Lordo",
+    ],
+    "Catalogo bond": [
+        "ISIN",
+        "Descrizione",
+        "Emittente",
+        "Prezzo",
+        "Yield",
+    ],
+    "Liquidità": [
+        "Titolare",
+        "Conto",
+        "Data",
+        "Saldo",
+    ],
+    "Titolari": [
+        "Titolare",
+        "Banca",
+    ],
+}
+
 selected_csv = st.sidebar.selectbox(
     "Seleziona archivio da aggiornare",
     list(csv_files.keys())
@@ -58,42 +102,59 @@ if uploaded_csv is not None:
     try:
         preview_df = pd.read_csv(uploaded_csv)
 
-        st.sidebar.success(
-            f"File caricato: {uploaded_csv.name} — "
-            f"{len(preview_df)} righe"
-        )
+        missing_columns = [
+            col
+            for col in required_columns[selected_csv]
+            if col not in preview_df.columns
+        ]
 
-        if st.sidebar.button("✅ Conferma aggiornamento"):
-            destination = csv_files[selected_csv]
-
-            # Backup del file precedente
-            if destination.exists():
-                backup_dir = destination.parent / "backup"
-                backup_dir.mkdir(exist_ok=True)
-
-                from datetime import datetime
-                import shutil
-
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-                backup_file = (
-                    backup_dir
-                    / f"{destination.stem}_backup_{timestamp}.csv"
-                )
-
-                shutil.copy2(destination, backup_file)
-
-            # Salva il nuovo CSV
-            preview_df.to_csv(destination, index=False)
-
-            # Aggiorna i dati caricati dalla cache
-            load_data.clear()
-
+        if missing_columns:
+            st.sidebar.error(
+                "❌ File non valido. Mancano le colonne: "
+                + ", ".join(missing_columns)
+            )
+        else:
             st.sidebar.success(
-                f"{selected_csv} aggiornato correttamente."
+                f"File valido: {uploaded_csv.name} — "
+                f"{len(preview_df)} righe"
             )
 
-            st.rerun()
+            st.sidebar.dataframe(
+                preview_df.head(5),
+                use_container_width=True
+            )
+
+            if st.sidebar.button("✅ Conferma aggiornamento"):
+                destination = csv_files[selected_csv]
+
+                # Backup del file precedente
+                if destination.exists():
+                    backup_dir = destination.parent / "backup"
+                    backup_dir.mkdir(exist_ok=True)
+
+                    from datetime import datetime
+                    import shutil
+
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+                    backup_file = (
+                        backup_dir
+                        / f"{destination.stem}_backup_{timestamp}.csv"
+                    )
+
+                    shutil.copy2(destination, backup_file)
+
+                # Salva il nuovo CSV
+                preview_df.to_csv(destination, index=False)
+
+                # Aggiorna i dati caricati dalla cache
+                load_data.clear()
+
+                st.sidebar.success(
+                    f"{selected_csv} aggiornato correttamente."
+                )
+
+                st.rerun()
 
     except Exception as exc:
         st.sidebar.error(f"Errore nell'importazione: {exc}")
@@ -105,7 +166,7 @@ if not holders.empty and "Titolare" in holders.columns:
         .dropna()
         .astype(str)
         .unique()
-        .tolist()
+    .tolist()
     )
 else:
     holder_options += sorted(set(
