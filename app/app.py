@@ -467,14 +467,48 @@ with t4:
 
 with t5:
     st.subheader("Proposte di rotazione Bond")
-    proposals = bond_rotation_candidates(bonds)
-    if not proposals:
-        st.success("Nessuna proposta automatica sulla base delle regole attuali.")
-    else:
-        p = pd.DataFrame(proposals)
-        st.dataframe(p, use_container_width=True, hide_index=True)
-        st.caption("Le proposte sono segnali quantitativi da verificare prima di qualsiasi operazione.")
 
+    proposals = bond_rotation_candidates(bonds)
+
+    if not proposals:
+        st.success(
+            "Nessuna proposta automatica sulla base delle regole attuali."
+        )
+    else:
+        proposal_rows = []
+
+        for proposal in proposals:
+            isin = proposal.get("ISIN")
+
+            match = bonds[bonds["ISIN"].astype(str) == str(isin)]
+
+            if not match.empty:
+                row = match.iloc[0]
+
+                proposal_rows.append({
+                    "ISIN": isin,
+                    "Score": proposal.get("score"),
+                    "Classificazione": row.get("Classificazione"),
+                    "% Portafoglio Bond": row.get("% Portafoglio Bond"),
+                    "Plusvalenza %": row.get("Plusvalenza_Percentuale"),
+                    "Giorni Scadenza": row.get("Giorni_Scadenza"),
+                    "Yield On Cost": row.get("Yield_On_Cost")
+                })
+            else:
+                proposal_rows.append(proposal)
+
+        p = pd.DataFrame(proposal_rows)
+
+        st.dataframe(
+            p,
+            use_container_width=True,
+            hide_index=True
+        )
+
+        st.caption(
+            "Le proposte sono segnali quantitativi da verificare "
+            "prima di qualsiasi operazione."
+        )
 with t6:
     st.subheader("Qualità e stato dei dati")
     status = [
