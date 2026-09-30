@@ -90,17 +90,146 @@ def enrich_certificates(certs, underlyings):
     return c
 
 def portfolio_kpis(bonds, certs, liquidity):
-    bv=pd.to_numeric(bonds.get("Valore_Attuale_Calc",pd.Series(dtype=float)),errors="coerce").fillna(0).sum()
-    cv=(pd.to_numeric(certs.get("Quantita",pd.Series(dtype=float)),errors="coerce").fillna(0)*
-        pd.to_numeric(certs.get("Prezzo_Attuale",pd.Series(dtype=float)),errors="coerce").fillna(0)).sum()
-    lv=pd.to_numeric(liquidity.get("Saldo",pd.Series(dtype=float)),errors="coerce").fillna(0).sum()
-    return {
-        "bond_value":bv,"cert_value":cv,"liquidity":lv,"patrimonio":bv+cv+lv,
-        "unrealized_pnl":pd.to_numeric(bonds.get("Plusvalenza_Calc",pd.Series(dtype=float)),errors="coerce").fillna(0).sum(),
-        "annual_coupon":pd.to_numeric(bonds.get("Flusso_Cedolare_Annuo",pd.Series(dtype=float)),errors="coerce").fillna(0).sum(),
-        "coupons_received":0.0
-    }
+    # =========================
+    # VALORE ATTUALE
+    # =========================
 
+    bv = pd.to_numeric(
+        bonds.get("Valore_Attuale_Calc", pd.Series(dtype=float)),
+        errors="coerce"
+    ).fillna(0).sum()
+
+    cv = (
+        pd.to_numeric(
+            certs.get("Quantita", pd.Series(dtype=float)),
+            errors="coerce"
+        ).fillna(0)
+        *
+        pd.to_numeric(
+            certs.get("Prezzo_Attuale", pd.Series(dtype=float)),
+            errors="coerce"
+        ).fillna(0)
+    ).sum()
+
+    lv = pd.to_numeric(
+        liquidity.get("Saldo", pd.Series(dtype=float)),
+        errors="coerce"
+    ).fillna(0).sum()
+
+    patrimonio = bv + cv + lv
+
+    # =========================
+    # CAPITALE INVESTITO
+    # =========================
+
+    bond_investito = pd.to_numeric(
+        bonds.get("Valore_Carico_Calc", pd.Series(dtype=float)),
+        errors="coerce"
+    ).fillna(0).sum()
+
+    cert_investito = (
+        pd.to_numeric(
+            certs.get("Quantita", pd.Series(dtype=float)),
+            errors="coerce"
+        ).fillna(0)
+        *
+        pd.to_numeric(
+            certs.get("Prezzo_Carico", pd.Series(dtype=float)),
+            errors="coerce"
+        ).fillna(0)
+    ).sum()
+
+    capitale_investito = bond_investito + cert_investito
+
+    # =========================
+    # PLUS / MINUSVALENZE
+    # =========================
+
+    bond_pnl = pd.to_numeric(
+        bonds.get("Plusvalenza_Calc", pd.Series(dtype=float)),
+        errors="coerce"
+    ).fillna(0).sum()
+
+    cert_pnl = (
+        pd.to_numeric(
+            certs.get("Quantita", pd.Series(dtype=float)),
+            errors="coerce"
+        ).fillna(0)
+        *
+        (
+            pd.to_numeric(
+                certs.get("Prezzo_Attuale", pd.Series(dtype=float)),
+                errors="coerce"
+            ).fillna(0)
+            -
+            pd.to_numeric(
+                certs.get("Prezzo_Carico", pd.Series(dtype=float)),
+                errors="coerce"
+            ).fillna(0)
+        )
+    ).sum()
+
+    total_pnl = bond_pnl + cert_pnl
+
+    # =========================
+    # RENDIMENTI
+    # =========================
+
+    rendimento_totale_pct = (
+        total_pnl / capitale_investito * 100
+        if capitale_investito != 0
+        else 0
+    )
+
+    # =========================
+    # CEDOLE
+    # =========================
+
+    annual_coupon = pd.to_numeric(
+        bonds.get("Flusso_Cedolare_Annuo", pd.Series(dtype=float)),
+        errors="coerce"
+    ).fillna(0).sum()
+
+    rendimento_cedolare_patrimonio_pct = (
+        annual_coupon / patrimonio * 100
+        if patrimonio != 0
+        else 0
+    )
+
+    rendimento_cedolare_capitale_pct = (
+        annual_coupon / capitale_investito * 100
+        if capitale_investito != 0
+        else 0
+    )
+
+    return {
+        # Valori attuali
+        "bond_value": bv,
+        "cert_value": cv,
+        "liquidity": lv,
+        "patrimonio": patrimonio,
+
+        # Capitale investito
+        "bond_investito": bond_investito,
+        "cert_investito": cert_investito,
+        "capitale_investito": capitale_investito,
+
+        # Plus/minus
+        "bond_pnl": bond_pnl,
+        "cert_pnl": cert_pnl,
+        "unrealized_pnl": total_pnl,
+        "rendimento_totale_pct": rendimento_totale_pct,
+
+        # Cedole
+        "annual_coupon": annual_coupon,
+        "rendimento_cedolare_patrimonio_pct":
+            rendimento_cedolare_patrimonio_pct,
+        "rendimento_cedolare_capitale_pct":
+            rendimento_cedolare_capitale_pct,
+
+        # Compatibilità con V1/V2
+        "coupons_received": 0.0
+    }
 def coupon_forecast(bonds, coupons):
     c=coupons.copy()
     if not c.empty:

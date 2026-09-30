@@ -18,7 +18,6 @@ from calcoli import (
 
 st.set_page_config(page_title="Piattaforma Investimenti", page_icon="📊", layout="wide")
 
-@st.cache_data
 def load_data():
     return load_portfolio_data(ROOT / "data", ROOT)
 
@@ -194,13 +193,56 @@ st.sidebar.metric("Posizioni Bond", len(bonds))
 st.sidebar.metric("Certificates", len(certs))
 if not certs.empty and "Classificazione" in certs:
     st.sidebar.metric("Alert Certificates", int((certs["Classificazione"] == "CRITICO").sum()))
-
 c1,c2,c3,c4,c5 = st.columns(5)
-c1.metric("Patrimonio", f"€ {kpis['patrimonio']:,.2f}")
-c2.metric("Bond", f"€ {kpis['bond_value']:,.2f}")
-c3.metric("Certificates", f"€ {kpis['cert_value']:,.2f}")
-c4.metric("Liquidità", f"€ {kpis['liquidity']:,.2f}")
-c5.metric("Plus/Minus latenti", f"€ {kpis['unrealized_pnl']:,.2f}")
+
+c1.metric(
+    "Patrimonio",
+    f"€ {kpis['patrimonio']:,.2f}"
+)
+
+c2.metric(
+    "Bond",
+    f"€ {kpis['bond_value']:,.2f}"
+)
+
+c3.metric(
+    "Certificates",
+    f"€ {kpis['cert_value']:,.2f}"
+)
+
+c4.metric(
+    "Liquidità",
+    f"€ {kpis['liquidity']:,.2f}"
+)
+
+c5.metric(
+    "Plus/Minus",
+    f"€ {kpis['unrealized_pnl']:,.2f}",
+    f"{kpis['rendimento_totale_pct']:.2f}%"
+)
+st.markdown("### 📈 Rendimento e Cash Flow")
+
+r1, r2, r3, r4 = st.columns(4)
+
+r1.metric(
+    "Capitale investito",
+    f"€ {kpis['capitale_investito']:,.2f}"
+)
+
+r2.metric(
+    "Cedole annue",
+    f"€ {kpis['annual_coupon']:,.2f}"
+)
+
+r3.metric(
+    "Yield cedolare",
+    f"{kpis['rendimento_cedolare_capitale_pct']:.2f}%"
+)
+
+r4.metric(
+    "Cash Flow medio mensile",
+    f"€ {kpis['annual_coupon'] / 12:,.2f}"
+)
 
 st.divider()
 t1,t2,t3,t4,t5,t6 = st.tabs(["Dashboard","Bond","Certificates","Cedole","Rotazioni","Dati"])
