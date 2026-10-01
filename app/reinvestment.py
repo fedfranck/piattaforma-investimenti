@@ -137,6 +137,52 @@ def reinvestment_candidates(catalog, amount, bonds=None):
         )
     else:
         df["CashFlow_Annuale"] = 0.0
+    # Score Prezzo 0-100
+    if "Prezzo" in df.columns:
+        df["Prezzo"] = pd.to_numeric(
+            df["Prezzo"],
+            errors="coerce"
+        )
+
+        df["Score_Prezzo"] = (
+            (100 - df["Prezzo"])
+            .clip(lower=0)
+            .clip(upper=100)
+        )
+    else:
+        df["Score_Prezzo"] = 0.0  
+  
+  # Score Rating normalizzato 0-100
+    rating_order = {
+        "AAA": 100,
+        "AA+": 95,
+        "AA": 90,
+        "AA-": 85,
+        "A+": 80,
+        "A": 75,
+        "A-": 70,
+        "BBB+": 65,
+        "BBB": 60,
+        "BBB-": 55,
+        "BB+": 45,
+        "BB": 40,
+        "BB-": 35,
+        "B+": 25,
+        "B": 20,
+        "B-": 15
+    }
+
+    if "Rating" in df.columns:
+        df["Score_Rating"] = (
+            df["Rating"]
+            .astype(str)
+            .str.strip()
+            .map(rating_order)
+            .fillna(0)
+        )
+    else:
+        df["Score_Rating"] = 0.0        
+    
     # Score Cash Flow normalizzato 0-100
     if df["CashFlow_Annuale"].notna().any():
         min_cashflow = df["CashFlow_Annuale"].min()
@@ -152,9 +198,16 @@ def reinvestment_candidates(catalog, amount, bonds=None):
             df["Score_CashFlow"] = 100.0
     else:
         df["Score_CashFlow"] = 0.0
-
+    # Score Reinvestimento complessivo
+    df["Score_Reinvestimento"] = (
+        df["Score_Yield"] * 0.40
+        + df["Score_CashFlow"] * 0.20
+        + df["Score_Diversificazione"] * 0.20
+        + df["Score_Rating"] * 0.10
+        + df["Score_Prezzo"] * 0.10
+    )
     df = df.sort_values(
-        "Score_Yield",
+        "Score_Reinvestimento",
         ascending=False
     )
 
@@ -164,14 +217,19 @@ def reinvestment_candidates(catalog, amount, bonds=None):
         [
             "ISIN",
             "Descrizione",
+            "Prezzo",
             "Cedola",
             "Yield",
             "Duration",
             "Scadenza",
+            "Rating",
             "Cedola_Reinvestita",
             "CashFlow_Annuale",
             "Score_Yield",
             "Score_Diversificazione",
-            "Score_CashFlow"
+            "Score_Rating",
+            "Score_Prezzo",
+            "Score_CashFlow",
+            "Score_Reinvestimento"
         ]
-    ].head(5)
+    ].head(5) 
