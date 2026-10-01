@@ -470,31 +470,44 @@ with t4:
     st.divider()
     st.subheader("Simulazione reinvestimento cedole")
 
+    profile_options = {
+        "💰 Massimo Cash Flow": "cash_flow",
+        "📈 Massimo rendimento": "rendimento",
+        "🪜 Ladder / Diversificazione": "ladder"
+    }
+
+    selected_profile_label = st.selectbox(
+        "Profilo reinvestimento",
+        list(profile_options.keys())
+    )
+
+    selected_profile = profile_options[selected_profile_label]
+
     reinvest_amount = st.number_input(
-          "Importo disponibile da reinvestire (€)",
-          min_value=0.0,
-          value=1000.0,
-          step=100.0
-      )
+        "Importo disponibile da reinvestire (€)",
+        min_value=0.0,
+        value=1000.0,
+        step=100.0
+    )
 
     if st.button("Calcola opportunità reinvestimento"):
-          suggestions = reinvestment_candidates(
-              catalog,
-              reinvest_amount,
-              bonds
-          )
+        suggestions = reinvestment_candidates(
+            catalog,
+            reinvest_amount,
+            bonds,
+            profile=selected_profile
+        )
+        if suggestions.empty:
+            st.warning(
+                "Nessun titolo disponibile nel catalogo."
+            )
+        else:
+            st.dataframe(
+                suggestions,
+                use_container_width=True,
+                hide_index=True
+            )
 
-          if suggestions.empty:
-              st.warning(
-                  "Nessun titolo disponibile nel catalogo."
-              )
-          else:
-              st.dataframe(
-                  suggestions,
-                  use_container_width=True,
-                  hide_index=True
-              )
- 
 with t5:
     st.subheader("Proposte di rotazione Bond")
 

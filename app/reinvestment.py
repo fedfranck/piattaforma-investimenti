@@ -1,7 +1,12 @@
 import pandas as pd
 
 
-def reinvestment_candidates(catalog, amount, bonds=None):
+def reinvestment_candidates(
+    catalog,
+    amount,
+    bonds=None,
+    profile="rendimento"
+):
     """
      Genera una lista di possibili reinvestimenti delle cedole.
 
@@ -13,6 +18,38 @@ def reinvestment_candidates(catalog, amount, bonds=None):
         return pd.DataFrame()
 
     df = catalog.copy()
+
+    # Profili di reinvestimento
+    profiles = {
+        "cash_flow": {
+            "yield": 0.20,
+            "cash_flow": 0.40,
+            "diversificazione": 0.15,
+            "rating": 0.15,
+            "prezzo": 0.10
+        },
+        "rendimento": {
+            "yield": 0.40,
+            "cash_flow": 0.20,
+            "diversificazione": 0.20,
+            "rating": 0.10,
+            "prezzo": 0.10
+        },
+        "ladder": {
+            "yield": 0.25,
+            "cash_flow": 0.15,
+            "diversificazione": 0.40,
+            "rating": 0.10,
+            "prezzo": 0.10
+        }
+    }
+
+    # Se il profilo non è riconosciuto,
+    # utilizza il profilo rendimento come default.
+    if profile not in profiles:
+        profile = "rendimento"
+
+    weights = profiles[profile]
 
     # Analisi della concentrazione temporale del portafoglio
     maturity_concentration = {}
@@ -200,11 +237,11 @@ def reinvestment_candidates(catalog, amount, bonds=None):
         df["Score_CashFlow"] = 0.0
     # Score Reinvestimento complessivo
     df["Score_Reinvestimento"] = (
-        df["Score_Yield"] * 0.40
-        + df["Score_CashFlow"] * 0.20
-        + df["Score_Diversificazione"] * 0.20
-        + df["Score_Rating"] * 0.10
-        + df["Score_Prezzo"] * 0.10
+        df["Score_Yield"] * weights["yield"]
+        + df["Score_CashFlow"] * weights["cash_flow"]
+        + df["Score_Diversificazione"] * weights["diversificazione"]
+        + df["Score_Rating"] * weights["rating"]
+        + df["Score_Prezzo"] * weights["prezzo"]
     )
     df = df.sort_values(
         "Score_Reinvestimento",
