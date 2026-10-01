@@ -480,7 +480,8 @@ with t4:
     if st.button("Calcola opportunità reinvestimento"):
           suggestions = reinvestment_candidates(
               catalog,
-              reinvest_amount
+              reinvest_amount,
+              bonds
           )
 
           if suggestions.empty:
