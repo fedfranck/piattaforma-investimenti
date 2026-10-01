@@ -19,6 +19,9 @@ def reinvestment_candidates(
 
     df = catalog.copy()
 
+    # Lotto operativo minimo per i Bond
+    LOTTO_NOMINALE = 1000.0
+
     # Profili di reinvestimento
     profiles = {
         "cash_flow": {
@@ -161,6 +164,17 @@ def reinvestment_candidates(
             df["Score_Yield"] = 100.0
     else:
         df["Score_Yield"] = 0.0
+    # Nominale acquistabile in multipli del lotto operativo
+    if "Prezzo" in df.columns:
+        nominale_teorico = (
+            amount / df["Prezzo"] * 100
+        )
+
+        df["Nominale_Acquistabile"] = (
+            nominale_teorico // LOTTO_NOMINALE
+        ) * LOTTO_NOMINALE
+    else:
+        df["Nominale_Acquistabile"] = 0.0
 
     # Cash Flow annuo teorico generato dall'importo reinvestito
     if "Cedola" in df.columns:
@@ -170,10 +184,27 @@ def reinvestment_candidates(
         )
 
         df["CashFlow_Annuale"] = (
-            amount * df["Cedola"] / 100
+            df["Nominale_Acquistabile"]
+            * df["Cedola"]
+            / 100
         )
     else:
         df["CashFlow_Annuale"] = 0.0
+    # Capitale effettivamente investito
+    if "Prezzo" in df.columns:
+        df["Capitale_Investito"] = (
+            df["Nominale_Acquistabile"]
+            * df["Prezzo"]
+            / 100
+        )
+    else:
+        df["Capitale_Investito"] = 0.0
+
+    # Liquidità residua dopo il reinvestimento
+    df["Liquidita_Residua"] = (
+        amount - df["Capitale_Investito"]
+    )
+
     # Score Prezzo 0-100
     if "Prezzo" in df.columns:
         df["Prezzo"] = pd.to_numeric(
@@ -313,6 +344,9 @@ def reinvestment_candidates(
             "ISIN",
             "Descrizione",
             "Prezzo",
+            "Nominale_Acquistabile",
+            "Capitale_Investito",
+            "Liquidita_Residua",
             "Cedola",
             "Yield",
             "Duration",
