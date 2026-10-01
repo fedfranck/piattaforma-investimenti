@@ -15,7 +15,10 @@ from calcoli import (
     enrich_bonds, enrich_certificates, portfolio_kpis,
     coupon_forecast, bond_rotation_candidates, certificate_alerts
 )
-from reinvestment import reinvestment_candidates
+from reinvestment import (
+    reinvestment_candidates,
+    build_reinvestment_allocation
+)
 
 st.set_page_config(page_title="Piattaforma Investimenti", page_icon="📊", layout="wide")
 
@@ -497,11 +500,75 @@ with t4:
             profile=selected_profile
         )
 
+        allocation, residual = build_reinvestment_allocation(
+            catalog,
+            reinvest_amount,
+            bonds=bonds,
+            profile=selected_profile,
+            max_positions=3
+        )
+
         if suggestions.empty:
             st.warning(
                 "Nessun titolo disponibile nel catalogo."
             )
         else:
+            st.subheader("Allocazione proposta del capitale")
+
+            if allocation.empty:
+                st.info(
+                    "Non è stato possibile costruire un'allocazione "
+                    "con l'importo disponibile."
+                )
+            else:
+                allocation_display = allocation[
+                    [
+                        "ISIN",
+                        "Descrizione",
+                        "Prezzo",
+                        "Lotti_Allocati",
+                        "Nominale_Allocato",
+                        "Capitale_Investito"
+                    ]
+                ].copy()
+
+                st.dataframe(
+                    allocation_display,
+                    use_container_width=True,
+                    hide_index=True
+                )
+
+                totale_investito = allocation[
+                    "Capitale_Investito"
+                ].sum()
+
+                nominale_totale = allocation[
+                    "Nominale_Allocato"
+                ].sum()
+
+                col1, col2, col3, col4 = st.columns(4)
+
+                col1.metric(
+                    "Capitale disponibile",
+                    f"€ {reinvest_amount:,.2f}"
+                )
+
+                col2.metric(
+                    "Capitale investito",
+                    f"€ {totale_investito:,.2f}"
+                )
+
+                col3.metric(
+                    "Liquidità residua",
+                    f"€ {residual:,.2f}"
+                )
+
+                col4.metric(
+                    "Nominale totale",
+                    f"€ {nominale_totale:,.0f}"
+                )
+
+            st.divider()
             display_columns = [
                 "ISIN",
                 "Descrizione",

@@ -129,100 +129,7 @@ def allocate_lots(
         result["Profilo"] = profile
 
     return result, capitale_residuo
-    """
-    Alloca il capitale disponibile su più BTP,
-    rispettando il lotto nominale minimo di €1.000.
 
-    I candidati devono essere già ordinati per Score_Reinvestimento
-    dal più alto al più basso.
-    """
-
-    if candidates.empty or amount <= 0:
-        return pd.DataFrame(), float(amount)
-
-    df = candidates.copy()
-
-    LOTTO_NOMINALE = 1000.0
-
-    if "Prezzo" not in df.columns:
-        return pd.DataFrame(), float(amount)
-
-    df["Prezzo"] = pd.to_numeric(
-        df["Prezzo"],
-        errors="coerce"
-    )
-
-    df["Capitale_Per_Lotto"] = (
-        LOTTO_NOMINALE * df["Prezzo"] / 100
-    )
-
-    df = df[
-        df["Capitale_Per_Lotto"].notna()
-        & (df["Capitale_Per_Lotto"] > 0)
-    ].copy()
-
-    if df.empty:
-        return pd.DataFrame(), float(amount)
-
-    capitale_residuo = float(amount)
-    allocazioni = []
-
-    # Primo giro: una posizione per ciascun candidato
-    for _, row in df.iterrows():
-
-        if len(allocazioni) >= max_positions:
-            break
-
-        costo_lotto = float(row["Capitale_Per_Lotto"])
-
-        if costo_lotto > capitale_residuo:
-            continue
-
-        allocazioni.append({
-            "ISIN": row["ISIN"],
-            "Descrizione": row.get("Descrizione", ""),
-            "Prezzo": row["Prezzo"],
-            "Lotti_Allocati": 1,
-            "Nominale_Allocato": LOTTO_NOMINALE,
-            "Capitale_Investito": costo_lotto
-        })
-
-        capitale_residuo -= costo_lotto
-
-    # Secondo giro: utilizza la liquidità residua
-    # aggiungendo ulteriori lotti alle posizioni già selezionate.
-    while True:
-
-        acquistato = False
-
-        for i in range(len(allocazioni)):
-
-            costo_lotto = float(
-                allocazioni[i]["Prezzo"]
-                * LOTTO_NOMINALE
-                / 100
-            )
-
-            if costo_lotto <= capitale_residuo:
-
-                allocazioni[i]["Lotti_Allocati"] += 1
-                allocazioni[i]["Nominale_Allocato"] += LOTTO_NOMINALE
-                allocazioni[i]["Capitale_Investito"] += costo_lotto
-
-                capitale_residuo -= costo_lotto
-
-                acquistato = True
-                break
-
-        if not acquistato:
-            break
-
-    result = pd.DataFrame(allocazioni)
-
-    if not result.empty:
-        result["Liquidita_Residua"] = capitale_residuo
-
-    return result, capitale_residuo
 def reinvestment_candidates(
     catalog,
     amount,
@@ -597,4 +504,38 @@ def reinvestment_candidates(
             "Contributo_Prezzo",
             "Motivazione"
         ]
-    ].head(5)    
+    ].head(5)
+def build_reinvestment_allocation(
+    catalog,
+    amount,
+    bonds=None,
+    profile="rendimento",
+    max_positions=3
+):
+    """
+    Costruisce una simulazione completa di reinvestimento:
+
+    1. calcola i candidati in funzione del profilo;
+    2. ordina i candidati;
+    3. distribuisce il capitale su più BTP;
+    4. restituisce allocazione e liquidità residua.
+    """
+
+    candidates = reinvestment_candidates(
+        catalog,
+        amount,
+        bonds=bonds,
+        profile=profile
+    )
+
+    if candidates.empty:
+        return pd.DataFrame(), float(amount)
+
+    allocation, residual = allocate_lots(
+        candidates,
+        amount,
+        max_positions=max_positions,
+        profile=profile
+    )
+
+    return allocation, residual
