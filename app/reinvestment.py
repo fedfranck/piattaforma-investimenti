@@ -2,7 +2,133 @@ import pandas as pd
 import numpy as np
 
 
-def allocate_lots(candidates, amount, max_positions=3):
+def allocate_lots(
+    candidates,
+    amount,
+    max_positions=3,
+    profile="rendimento"
+):
+    """
+    Alloca il capitale disponibile su più BTP,
+    rispettando il lotto nominale minimo di €1.000.
+
+    L'ordine dei candidati viene adattato al profilo:
+    - cash_flow: privilegia il Cash Flow
+    - rendimento: privilegia il rendimento
+    - ladder: privilegia la diversificazione
+
+    I candidati devono contenere i relativi score.
+    """
+
+    if candidates.empty or amount <= 0:
+        return pd.DataFrame(), float(amount)
+
+    df = candidates.copy()
+
+    LOTTO_NOMINALE = 1000.0
+
+    if "Prezzo" not in df.columns:
+        return pd.DataFrame(), float(amount)
+
+    df["Prezzo"] = pd.to_numeric(
+        df["Prezzo"],
+        errors="coerce"
+    )
+
+    df = df[
+        df["Prezzo"].notna()
+        & (df["Prezzo"] > 0)
+    ].copy()
+
+    if df.empty:
+        return pd.DataFrame(), float(amount)
+
+    # Ordina i candidati in funzione del profilo selezionato
+    profile_score = {
+        "cash_flow": "Score_CashFlow",
+        "rendimento": "Score_Yield",
+        "ladder": "Score_Diversificazione"
+    }.get(profile, "Score_Reinvestimento")
+
+    if profile_score in df.columns:
+        df = df.sort_values(
+            profile_score,
+            ascending=False
+        ).reset_index(drop=True)
+    elif "Score_Reinvestimento" in df.columns:
+        df = df.sort_values(
+            "Score_Reinvestimento",
+            ascending=False
+        ).reset_index(drop=True)
+
+    df["Capitale_Per_Lotto"] = (
+        LOTTO_NOMINALE * df["Prezzo"] / 100
+    )
+
+    capitale_residuo = float(amount)
+    allocazioni = []
+
+    # Primo giro:
+    # una posizione per ciascun candidato, fino al numero massimo.
+    for _, row in df.iterrows():
+
+        if len(allocazioni) >= max_positions:
+            break
+
+        costo_lotto = float(
+            row["Capitale_Per_Lotto"]
+        )
+
+        if costo_lotto > capitale_residuo:
+            continue
+
+        allocazioni.append({
+            "ISIN": row["ISIN"],
+            "Descrizione": row.get("Descrizione", ""),
+            "Prezzo": row["Prezzo"],
+            "Lotti_Allocati": 1,
+            "Nominale_Allocato": LOTTO_NOMINALE,
+            "Capitale_Investito": costo_lotto
+        })
+
+        capitale_residuo -= costo_lotto
+
+    # Secondo giro:
+    # utilizza la liquidità residua seguendo l'ordine
+    # determinato dal profilo.
+    while True:
+
+        acquistato = False
+
+        for i in range(len(allocazioni)):
+
+            costo_lotto = float(
+                allocazioni[i]["Prezzo"]
+                * LOTTO_NOMINALE
+                / 100
+            )
+
+            if costo_lotto <= capitale_residuo:
+
+                allocazioni[i]["Lotti_Allocati"] += 1
+                allocazioni[i]["Nominale_Allocato"] += LOTTO_NOMINALE
+                allocazioni[i]["Capitale_Investito"] += costo_lotto
+
+                capitale_residuo -= costo_lotto
+
+                acquistato = True
+                break
+
+        if not acquistato:
+            break
+
+    result = pd.DataFrame(allocazioni)
+
+    if not result.empty:
+        result["Liquidita_Residua"] = capitale_residuo
+        result["Profilo"] = profile
+
+    return result, capitale_residuo
     """
     Alloca il capitale disponibile su più BTP,
     rispettando il lotto nominale minimo di €1.000.
