@@ -489,7 +489,6 @@ with t4:
         value=1000.0,
         step=100.0
     )
-
     if st.button("Calcola opportunità reinvestimento"):
         suggestions = reinvestment_candidates(
             catalog,
@@ -497,17 +496,42 @@ with t4:
             bonds,
             profile=selected_profile
         )
+
         if suggestions.empty:
             st.warning(
                 "Nessun titolo disponibile nel catalogo."
             )
         else:
+            display_columns = [
+                "ISIN",
+                "Descrizione",
+                "Prezzo",
+                "Cedola",
+                "Yield",
+                "Duration",
+                "Scadenza",
+                "Rating",
+                "CashFlow_Annuale",
+                "Score_Yield",
+                "Score_CashFlow",
+                "Score_Diversificazione",
+                "Score_Rating",
+                "Score_Prezzo",
+                "Contributo_Yield",
+                "Contributo_CashFlow",
+                "Contributo_Diversificazione",
+                "Contributo_Rating",
+                "Contributo_Prezzo",
+                "Score_Reinvestimento"
+            ]
+
             st.dataframe(
-                suggestions,
+                suggestions[
+                    [c for c in display_columns if c in suggestions.columns]
+                ],
                 use_container_width=True,
                 hide_index=True
             )
-
 with t5:
     st.subheader("Proposte di rotazione Bond")
 

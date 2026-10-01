@@ -99,7 +99,7 @@ def reinvestment_candidates(
         maturity_weights = {
             fascia: valore / total_bond_value
             for fascia, valore in maturity_concentration.items()
-        }     
+        }
     # Valuta quanto una nuova scadenza aiuta a diversificare
     def maturity_diversification_score(maturity):
         if pd.isna(maturity):
@@ -135,7 +135,7 @@ def reinvestment_candidates(
             )
         )
     else:
-        df["Score_Diversificazione"] = 0.0                      
+        df["Score_Diversificazione"] = 0.0
     # Normalizzazione numerica
     df["Yield"] = pd.to_numeric(
         df["Yield"],
@@ -187,8 +187,8 @@ def reinvestment_candidates(
             .clip(upper=100)
         )
     else:
-        df["Score_Prezzo"] = 0.0  
-  
+        df["Score_Prezzo"] = 0.0
+
   # Score Rating normalizzato 0-100
     rating_order = {
         "AAA": 100,
@@ -218,8 +218,8 @@ def reinvestment_candidates(
             .fillna(0)
         )
     else:
-        df["Score_Rating"] = 0.0        
-    
+        df["Score_Rating"] = 0.0
+
     # Score Cash Flow normalizzato 0-100
     if df["CashFlow_Annuale"].notna().any():
         min_cashflow = df["CashFlow_Annuale"].min()
@@ -235,14 +235,37 @@ def reinvestment_candidates(
             df["Score_CashFlow"] = 100.0
     else:
         df["Score_CashFlow"] = 0.0
+    # Contributi dei singoli fattori allo score finale
+    df["Contributo_Yield"] = (
+        df["Score_Yield"] * weights["yield"]
+    )
+
+    df["Contributo_CashFlow"] = (
+        df["Score_CashFlow"] * weights["cash_flow"]
+    )
+
+    df["Contributo_Diversificazione"] = (
+        df["Score_Diversificazione"]
+        * weights["diversificazione"]
+    )
+
+    df["Contributo_Rating"] = (
+        df["Score_Rating"] * weights["rating"]
+    )
+
+    df["Contributo_Prezzo"] = (
+        df["Score_Prezzo"] * weights["prezzo"]
+    )
+
     # Score Reinvestimento complessivo
     df["Score_Reinvestimento"] = (
-        df["Score_Yield"] * weights["yield"]
-        + df["Score_CashFlow"] * weights["cash_flow"]
-        + df["Score_Diversificazione"] * weights["diversificazione"]
-        + df["Score_Rating"] * weights["rating"]
-        + df["Score_Prezzo"] * weights["prezzo"]
+        df["Contributo_Yield"]
+        + df["Contributo_CashFlow"]
+        + df["Contributo_Diversificazione"]
+        + df["Contributo_Rating"]
+        + df["Contributo_Prezzo"]
     )
+
     df = df.sort_values(
         "Score_Reinvestimento",
         ascending=False
@@ -267,6 +290,11 @@ def reinvestment_candidates(
             "Score_Rating",
             "Score_Prezzo",
             "Score_CashFlow",
-            "Score_Reinvestimento"
+            "Score_Reinvestimento",
+            "Contributo_Yield",
+            "Contributo_CashFlow",
+            "Contributo_Diversificazione",
+            "Contributo_Rating",
+            "Contributo_Prezzo"
         ]
-    ].head(5) 
+    ].head(5)
