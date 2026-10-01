@@ -1,6 +1,102 @@
 import pandas as pd
+import numpy as np
 
 
+def allocate_lots(candidates, amount, max_positions=3):
+    """
+    Alloca il capitale disponibile su più BTP,
+    rispettando il lotto nominale minimo di €1.000.
+
+    I candidati devono essere già ordinati per Score_Reinvestimento
+    dal più alto al più basso.
+    """
+
+    if candidates.empty or amount <= 0:
+        return pd.DataFrame(), float(amount)
+
+    df = candidates.copy()
+
+    LOTTO_NOMINALE = 1000.0
+
+    if "Prezzo" not in df.columns:
+        return pd.DataFrame(), float(amount)
+
+    df["Prezzo"] = pd.to_numeric(
+        df["Prezzo"],
+        errors="coerce"
+    )
+
+    df["Capitale_Per_Lotto"] = (
+        LOTTO_NOMINALE * df["Prezzo"] / 100
+    )
+
+    df = df[
+        df["Capitale_Per_Lotto"].notna()
+        & (df["Capitale_Per_Lotto"] > 0)
+    ].copy()
+
+    if df.empty:
+        return pd.DataFrame(), float(amount)
+
+    capitale_residuo = float(amount)
+    allocazioni = []
+
+    # Primo giro: una posizione per ciascun candidato
+    for _, row in df.iterrows():
+
+        if len(allocazioni) >= max_positions:
+            break
+
+        costo_lotto = float(row["Capitale_Per_Lotto"])
+
+        if costo_lotto > capitale_residuo:
+            continue
+
+        allocazioni.append({
+            "ISIN": row["ISIN"],
+            "Descrizione": row.get("Descrizione", ""),
+            "Prezzo": row["Prezzo"],
+            "Lotti_Allocati": 1,
+            "Nominale_Allocato": LOTTO_NOMINALE,
+            "Capitale_Investito": costo_lotto
+        })
+
+        capitale_residuo -= costo_lotto
+
+    # Secondo giro: utilizza la liquidità residua
+    # aggiungendo ulteriori lotti alle posizioni già selezionate.
+    while True:
+
+        acquistato = False
+
+        for i in range(len(allocazioni)):
+
+            costo_lotto = float(
+                allocazioni[i]["Prezzo"]
+                * LOTTO_NOMINALE
+                / 100
+            )
+
+            if costo_lotto <= capitale_residuo:
+
+                allocazioni[i]["Lotti_Allocati"] += 1
+                allocazioni[i]["Nominale_Allocato"] += LOTTO_NOMINALE
+                allocazioni[i]["Capitale_Investito"] += costo_lotto
+
+                capitale_residuo -= costo_lotto
+
+                acquistato = True
+                break
+
+        if not acquistato:
+            break
+
+    result = pd.DataFrame(allocazioni)
+
+    if not result.empty:
+        result["Liquidita_Residua"] = capitale_residuo
+
+    return result, capitale_residuo
 def reinvestment_candidates(
     catalog,
     amount,
@@ -21,7 +117,6 @@ def reinvestment_candidates(
 
     # Lotto operativo minimo per i Bond
     LOTTO_NOMINALE = 1000.0
-
     # Profili di reinvestimento
     profiles = {
         "cash_flow": {
@@ -164,18 +259,25 @@ def reinvestment_candidates(
             df["Score_Yield"] = 100.0
     else:
         df["Score_Yield"] = 0.0
-    # Nominale acquistabile in multipli del lotto operativo
+    # Numero massimo di lotti acquistabili per ciascun Bond
     if "Prezzo" in df.columns:
-        nominale_teorico = (
-            amount / df["Prezzo"] * 100
+        capitale_per_lotto = (
+            LOTTO_NOMINALE * df["Prezzo"] / 100
         )
 
-        df["Nominale_Acquistabile"] = (
-            nominale_teorico // LOTTO_NOMINALE
-        ) * LOTTO_NOMINALE
-    else:
-        df["Nominale_Acquistabile"] = 0.0
+        df["Capitale_Per_Lotto"] = capitale_per_lotto
 
+        df["Lotti_Acquistabili"] = np.floor(
+            amount / df["Capitale_Per_Lotto"]
+        ).fillna(0).astype(int)
+
+        df["Nominale_Acquistabile"] = (
+            df["Lotti_Acquistabili"]
+            * LOTTO_NOMINALE
+        )
+    else:
+        df["Lotti_Acquistabili"] = 0
+        df["Nominale_Acquistabile"] = 0.0
     # Cash Flow annuo teorico generato dall'importo reinvestito
     if "Cedola" in df.columns:
         df["Cedola"] = pd.to_numeric(
@@ -345,6 +447,8 @@ def reinvestment_candidates(
             "Descrizione",
             "Prezzo",
             "Nominale_Acquistabile",
+            "Capitale_Per_Lotto",
+            "Lotti_Acquistabili",
             "Capitale_Investito",
             "Liquidita_Residua",
             "Cedola",
