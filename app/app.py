@@ -522,7 +522,8 @@ with t4:
                 "Contributo_Diversificazione",
                 "Contributo_Rating",
                 "Contributo_Prezzo",
-                "Score_Reinvestimento"
+                "Score_Reinvestimento",
+                "Motivazione"
             ]
 
             st.dataframe(

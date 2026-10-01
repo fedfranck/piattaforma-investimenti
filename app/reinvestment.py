@@ -266,6 +266,41 @@ def reinvestment_candidates(
         + df["Contributo_Prezzo"]
     )
 
+    # Motivazione dettagliata della raccomandazione
+    def build_recommendation_reason(row):
+        contributions = {
+            "Yield": row["Contributo_Yield"],
+            "Cash Flow": row["Contributo_CashFlow"],
+            "Diversificazione": row["Contributo_Diversificazione"],
+            "Rating": row["Contributo_Rating"],
+            "Prezzo": row["Contributo_Prezzo"]
+        }
+
+        main_factor = max(
+            contributions,
+            key=contributions.get
+        )
+
+        reason = (
+            f"Score {row['Score_Reinvestimento']:.2f}: "
+            f"Yield +{row['Contributo_Yield']:.2f}; "
+            f"Cash Flow +{row['Contributo_CashFlow']:.2f}; "
+            f"Diversificazione +{row['Contributo_Diversificazione']:.2f}; "
+            f"Rating +{row['Contributo_Rating']:.2f}; "
+            f"Prezzo +{row['Contributo_Prezzo']:.2f}. "
+        )
+
+        reason += (
+            f"Driver principale: {main_factor}."
+        )
+
+        return reason
+
+    df["Motivazione"] = df.apply(
+        build_recommendation_reason,
+        axis=1
+    )
+
     df = df.sort_values(
         "Score_Reinvestimento",
         ascending=False
@@ -295,6 +330,7 @@ def reinvestment_candidates(
             "Contributo_CashFlow",
             "Contributo_Diversificazione",
             "Contributo_Rating",
-            "Contributo_Prezzo"
+            "Contributo_Prezzo",
+            "Motivazione"
         ]
-    ].head(5)
+    ].head(5)    
