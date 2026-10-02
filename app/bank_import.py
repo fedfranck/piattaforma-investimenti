@@ -141,7 +141,10 @@ def read_bank_portfolio_csv(
 
     # Data e ora in cui avviene l'importazione.
 
-    df["Data_Importazione"] = pd.Timestamp.now()
+    df["Data_Importazione"] = (
+    pd.Timestamp.now(tz="Europe/Rome")
+    .tz_localize(None)
+)
 
     # Associazione a titolare e conto.
 
@@ -946,3 +949,125 @@ def validate_bank_import_preview(preview):
         "message": "Importazione pronta per la conferma.",
         "blocking_rows": blocking_rows
     }
+
+def build_import_history_record(
+    preview,
+    source_file
+):
+    """
+    Genera il record di storico relativo a una preview
+    di importazione bancaria.
+
+    Non scrive alcun file.
+    """
+
+    if preview.empty:
+        raise ValueError(
+            "Impossibile creare lo storico: preview vuota."
+        )
+
+    holders = (
+        preview["Titolare"]
+        .dropna()
+        .astype(str)
+        .str.strip()
+        .unique()
+    )
+
+    accounts = (
+        preview["Conto"]
+        .dropna()
+        .astype(str)
+        .str.strip()
+        .unique()
+    )
+
+    if len(holders) != 1:
+        raise ValueError(
+            "La preview deve contenere un solo titolare."
+        )
+
+    if len(accounts) != 1:
+        raise ValueError(
+            "La preview deve contenere un solo conto."
+        )
+
+    reference_dates = (
+        pd.to_datetime(
+            preview["Data_Riferimento"],
+            errors="coerce"
+        )
+        .dropna()
+        .dt.date
+        .unique()
+    )
+
+    if len(reference_dates) != 1:
+        raise ValueError(
+            "La preview deve avere una sola Data_Riferimento."
+        )
+
+    import_dates = pd.to_datetime(
+        preview["Data_Importazione"],
+        errors="coerce"
+    ).dropna()
+
+    if import_dates.empty:
+        raise ValueError(
+            "Data_Importazione mancante."
+        )
+
+    import_timestamp = import_dates.max()
+
+    import_id = (
+        import_timestamp.strftime("%Y%m%d_%H%M%S_%f")
+        + "_"
+        + holders[0]
+        + "_"
+        + accounts[0]
+    )
+
+    import_id = (
+        import_id
+        .replace(" ", "_")
+        .replace("/", "_")
+        .replace("\\", "_")
+    )
+
+    asset_counts = (
+        preview["Tipo_Asset"]
+        .value_counts()
+        .to_dict()
+    )
+
+    validation = validate_bank_import_preview(
+        preview
+    )
+
+    if validation["ready"]:
+        status = "PRONTA"
+    else:
+        status = "BLOCCATA"
+
+    record = {
+        "ID_Importazione": import_id,
+        "Data_Riferimento": reference_dates[0],
+        "Data_Importazione": import_timestamp,
+        "Titolare": holders[0],
+        "Conto": accounts[0],
+        "File_Origine": Path(source_file).name,
+        "Totale_Strumenti": len(preview),
+        "Numero_Bond": asset_counts.get("BOND", 0),
+        "Numero_Certificate": asset_counts.get(
+            "CERTIFICATE",
+            0
+        ),
+        "Numero_Fondi": asset_counts.get("FONDO", 0),
+        "Numero_Da_Classificare": asset_counts.get(
+            "DA_CLASSIFICARE",
+            0
+        ),
+        "Stato": status
+    }
+
+    return record
