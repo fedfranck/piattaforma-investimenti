@@ -1167,3 +1167,63 @@ def save_import_history_record(
     )
 
     return updated_history
+def prepare_bank_import(
+    file_path,
+    reference_date,
+    holder,
+    account,
+    current_bonds,
+    current_certificates,
+    current_funds,
+    bond_catalog=None,
+    instruments=None
+):
+    """
+    Prepara un'importazione bancaria completa.
+
+    Esegue:
+    - lettura e normalizzazione del CSV bancario;
+    - classificazione degli strumenti;
+    - generazione della preview unificata;
+    - validazione della preview;
+    - preparazione del record storico.
+
+    Non modifica alcun file.
+    """
+
+    bank_df = read_bank_portfolio_csv(
+        file_path=file_path,
+        reference_date=reference_date,
+        holder=holder,
+        account=account
+    )
+
+    bank_df = classify_bank_assets(
+        bank_df,
+        bond_catalog=bond_catalog,
+        certificates=current_certificates,
+        instruments=instruments
+    )
+
+    preview = preview_bank_import(
+        bank_df=bank_df,
+        current_bonds=current_bonds,
+        current_certificates=current_certificates,
+        current_funds=current_funds
+    )
+
+    validation = validate_bank_import_preview(
+        preview
+    )
+
+    history_record = build_import_history_record(
+        preview=preview,
+        source_file=file_path
+    )
+
+    return {
+        "bank_data": bank_df,
+        "preview": preview,
+        "validation": validation,
+        "history_record": history_record
+    }
