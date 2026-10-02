@@ -2013,3 +2013,243 @@ def build_updated_fund_portfolio(
             )
 
     return updated
+
+
+def build_updated_etf_portfolio(
+    bank_df,
+    current_etfs
+):
+    """
+    Costruisce in memoria il portafoglio ETF aggiornato.
+
+    Regole:
+    - considera solo gli strumenti classificati ETF;
+    - identifica una posizione tramite Titolare + Conto + ISIN;
+    - aggiorna i dati provenienti dall'estratto bancario;
+    - aggiunge le nuove posizioni;
+    - non elimina automaticamente le posizioni assenti
+      dal nuovo estratto;
+    - non modifica il DataFrame originale;
+    - non scrive alcun file.
+    """
+
+    bank_etfs = bank_df[
+        bank_df["Tipo_Asset"] == "ETF"
+    ].copy()
+
+    updated = current_etfs.copy(deep=True)
+
+    bank_to_portfolio = {
+        "Descrizione": "Descrizione",
+        "Valuta": "Valuta",
+        "Quantita": "Quantita",
+        "Prezzo_Carico": "Prezzo_Carico",
+        "Prezzo_Attuale": "Prezzo_Attuale",
+        "Valore_Attuale": "Valore_Attuale",
+        "Plusvalenza": "Plusvalenza",
+        "Plusvalenza_Percentuale": "Plusvalenza_Percentuale",
+        "Data_Riferimento": "Data_Riferimento",
+        "Data_Importazione": "Data_Importazione"
+    }
+
+    for _, bank_row in bank_etfs.iterrows():
+
+        holder = str(
+            bank_row["Titolare"]
+        ).strip()
+
+        account = str(
+            bank_row["Conto"]
+        ).strip()
+
+        isin = str(
+            bank_row["ISIN"]
+        ).strip()
+
+        mask = (
+            updated["Titolare"]
+            .astype(str)
+            .str.strip()
+            .str.upper()
+            == holder.upper()
+        )
+
+        mask &= (
+            updated["Conto"]
+            .astype(str)
+            .str.strip()
+            .str.upper()
+            == account.upper()
+        )
+
+        mask &= (
+            updated["ISIN"]
+            .astype(str)
+            .str.strip()
+            .str.upper()
+            == isin.upper()
+        )
+
+        if mask.any():
+
+            for bank_column, portfolio_column in (
+                bank_to_portfolio.items()
+            ):
+                updated.loc[
+                    mask,
+                    portfolio_column
+                ] = bank_row.get(
+                    bank_column,
+                    pd.NA
+                )
+
+        else:
+
+            new_row = {
+                column: pd.NA
+                for column in updated.columns
+            }
+
+            new_row["Titolare"] = holder
+            new_row["Conto"] = account
+            new_row["ISIN"] = isin
+
+            for bank_column, portfolio_column in (
+                bank_to_portfolio.items()
+            ):
+                new_row[
+                    portfolio_column
+                ] = bank_row.get(
+                    bank_column,
+                    pd.NA
+                )
+
+            updated = pd.concat(
+                [
+                    updated,
+                    pd.DataFrame([new_row])
+                ],
+                ignore_index=True
+            )
+
+    return updated
+
+
+def build_updated_stock_portfolio(
+    bank_df,
+    current_stocks
+):
+    """
+    Costruisce in memoria il portafoglio azioni aggiornato.
+
+    Regole:
+    - considera solo gli strumenti classificati AZIONE;
+    - identifica una posizione tramite Titolare + Conto + ISIN;
+    - aggiorna i dati provenienti dall'estratto bancario;
+    - aggiunge le nuove posizioni;
+    - non elimina automaticamente le posizioni assenti
+      dal nuovo estratto;
+    - non modifica il DataFrame originale;
+    - non scrive alcun file.
+    """
+
+    bank_stocks = bank_df[
+        bank_df["Tipo_Asset"] == "AZIONE"
+    ].copy()
+
+    updated = current_stocks.copy(deep=True)
+
+    bank_to_portfolio = {
+        "Descrizione": "Descrizione",
+        "Valuta": "Valuta",
+        "Quantita": "Quantita",
+        "Prezzo_Carico": "Prezzo_Carico",
+        "Prezzo_Attuale": "Prezzo_Attuale",
+        "Valore_Attuale": "Valore_Attuale",
+        "Plusvalenza": "Plusvalenza",
+        "Plusvalenza_Percentuale": "Plusvalenza_Percentuale",
+        "Data_Riferimento": "Data_Riferimento",
+        "Data_Importazione": "Data_Importazione"
+    }
+
+    for _, bank_row in bank_stocks.iterrows():
+
+        holder = str(
+            bank_row["Titolare"]
+        ).strip()
+
+        account = str(
+            bank_row["Conto"]
+        ).strip()
+
+        isin = str(
+            bank_row["ISIN"]
+        ).strip()
+
+        mask = (
+            updated["Titolare"]
+            .astype(str)
+            .str.strip()
+            .str.upper()
+            == holder.upper()
+        )
+
+        mask &= (
+            updated["Conto"]
+            .astype(str)
+            .str.strip()
+            .str.upper()
+            == account.upper()
+        )
+
+        mask &= (
+            updated["ISIN"]
+            .astype(str)
+            .str.strip()
+            .str.upper()
+            == isin.upper()
+        )
+
+        if mask.any():
+
+            for bank_column, portfolio_column in (
+                bank_to_portfolio.items()
+            ):
+                updated.loc[
+                    mask,
+                    portfolio_column
+                ] = bank_row.get(
+                    bank_column,
+                    pd.NA
+                )
+
+        else:
+
+            new_row = {
+                column: pd.NA
+                for column in updated.columns
+            }
+
+            new_row["Titolare"] = holder
+            new_row["Conto"] = account
+            new_row["ISIN"] = isin
+
+            for bank_column, portfolio_column in (
+                bank_to_portfolio.items()
+            ):
+                new_row[
+                    portfolio_column
+                ] = bank_row.get(
+                    bank_column,
+                    pd.NA
+                )
+
+            updated = pd.concat(
+                [
+                    updated,
+                    pd.DataFrame([new_row])
+                ],
+                ignore_index=True
+            )
+
+    return updated
