@@ -1296,3 +1296,91 @@ def create_portfolio_backup(
         "backup_dir": backup_dir,
         "files": created_backups
     }
+
+
+def build_updated_bond_portfolio(
+    bank_df,
+    current_bonds
+):
+    """
+    Costruisce il portafoglio Bond aggiornato in memoria.
+
+    Regole:
+    - aggiorna solo i Bond presenti nell'estratto bancario;
+    - usa Titolare + Conto + ISIN come chiave;
+    - preserva i metadati già presenti nella piattaforma;
+    - aggiunge le nuove posizioni;
+    - non elimina automaticamente le posizioni assenti
+      dall'estratto bancario;
+    - non scrive alcun file.
+    """
+
+    updated = current_bonds.copy()
+
+    bank_bonds = bank_df[
+        bank_df["Tipo_Asset"] == "BOND"
+    ].copy()
+
+    bank_to_portfolio = {
+        "Descrizione": "Descrizione",
+        "Valuta": "Valuta",
+        "Quantita": "Quantita_Nominale",
+        "Prezzo_Carico": "Prezzo_Carico",
+        "Prezzo_Attuale": "Prezzo_Attuale",
+        "Valore_Attuale": "Valore_Attuale",
+        "Plusvalenza": "Plusvalenza",
+        "Plusvalenza_Percentuale": "Plusvalenza_Percentuale"
+    }
+
+    key_columns = [
+        "Titolare",
+        "Conto",
+        "ISIN"
+    ]
+
+    for _, bank_row in bank_bonds.iterrows():
+
+        mask = (
+            (updated["Titolare"] == bank_row["Titolare"])
+            & (updated["Conto"] == bank_row["Conto"])
+            & (updated["ISIN"] == bank_row["ISIN"])
+        )
+
+        if mask.any():
+
+            for bank_column, portfolio_column in (
+                bank_to_portfolio.items()
+            ):
+                updated.loc[
+                    mask,
+                    portfolio_column
+                ] = bank_row[bank_column]
+
+        else:
+
+            new_row = {
+                column: pd.NA
+                for column in updated.columns
+            }
+
+            for key in key_columns:
+                new_row[key] = bank_row[key]
+
+            for bank_column, portfolio_column in (
+                bank_to_portfolio.items()
+            ):
+                new_row[portfolio_column] = (
+                    bank_row[bank_column]
+                )
+
+            new_row["Asset_Class"] = "BOND"
+
+            updated = pd.concat(
+                [
+                    updated,
+                    pd.DataFrame([new_row])
+                ],
+                ignore_index=True
+            )
+
+    return updated
