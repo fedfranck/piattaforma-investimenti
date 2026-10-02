@@ -1,4 +1,5 @@
 from pathlib import Path
+import shutil
 
 import pandas as pd
 
@@ -1226,4 +1227,72 @@ def prepare_bank_import(
         "preview": preview,
         "validation": validation,
         "history_record": history_record
+    }
+
+
+def create_portfolio_backup(
+    files,
+    backup_root
+):
+    """
+    Crea una copia di sicurezza dei file indicati.
+
+    Ogni esecuzione crea una cartella separata
+    identificata dal timestamp.
+
+    Non modifica i file originali.
+    """
+
+    backup_root = Path(backup_root)
+
+    timestamp = (
+        pd.Timestamp.now(tz="Europe/Rome")
+        .strftime("%Y%m%d_%H%M%S_%f")
+    )
+
+    backup_dir = (
+        backup_root
+        / f"backup_{timestamp}"
+    )
+
+    backup_dir.mkdir(
+        parents=True,
+        exist_ok=False
+    )
+
+    created_backups = []
+
+    try:
+        for file_path in files:
+            file_path = Path(file_path)
+
+            if not file_path.exists():
+                raise FileNotFoundError(
+                    f"File da salvare non trovato: {file_path}"
+                )
+
+            destination = (
+                backup_dir
+                / file_path.name
+            )
+
+            shutil.copy2(
+                file_path,
+                destination
+            )
+
+            created_backups.append(
+                destination
+            )
+
+    except Exception:
+        shutil.rmtree(
+            backup_dir,
+            ignore_errors=True
+        )
+        raise
+
+    return {
+        "backup_dir": backup_dir,
+        "files": created_backups
     }
