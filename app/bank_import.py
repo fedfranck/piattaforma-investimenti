@@ -2314,3 +2314,160 @@ def build_updated_portfolios(
         "etfs": updated_etfs,
         "stocks": updated_stocks
     }
+
+
+def prepare_portfolio_temp_files(
+    updated_portfolios,
+    target_files,
+    temp_root
+):
+    """
+    Scrive i portafogli aggiornati in una directory temporanea
+    e verifica che i CSV prodotti siano rileggibili e coerenti.
+
+    La funzione NON modifica i file reali del portafoglio.
+
+    Parametri:
+    - updated_portfolios:
+        dizionario restituito da build_updated_portfolios()
+    - target_files:
+        dizionario con i percorsi dei 5 CSV reali
+    - temp_root:
+        directory nella quale creare i file temporanei
+
+    Restituisce:
+    - temp_dir
+    - dizionario dei file temporanei creati
+    """
+
+    expected_keys = {
+        "bonds",
+        "certificates",
+        "funds",
+        "etfs",
+        "stocks"
+    }
+
+    if set(updated_portfolios.keys()) != expected_keys:
+        raise ValueError(
+            "updated_portfolios deve contenere esattamente: "
+            "bonds, certificates, funds, etfs, stocks"
+        )
+
+    if set(target_files.keys()) != expected_keys:
+        raise ValueError(
+            "target_files deve contenere esattamente: "
+            "bonds, certificates, funds, etfs, stocks"
+        )
+
+    temp_root = Path(temp_root)
+
+    timestamp = (
+        pd.Timestamp.now(tz="Europe/Rome")
+        .strftime("%Y%m%d_%H%M%S_%f")
+    )
+
+    temp_dir = (
+        temp_root
+        / f"portfolio_import_{timestamp}"
+    )
+
+    temp_dir.mkdir(
+        parents=True,
+        exist_ok=False
+    )
+
+    temp_files = {}
+
+    try:
+
+        for key in [
+            "bonds",
+            "certificates",
+            "funds",
+            "etfs",
+            "stocks"
+        ]:
+
+            dataframe = updated_portfolios[key]
+
+            if not isinstance(dataframe, pd.DataFrame):
+                raise TypeError(
+                    f"{key} non è un DataFrame pandas"
+                )
+
+            target_file = Path(
+                target_files[key]
+            )
+
+            if not target_file.exists():
+                raise FileNotFoundError(
+                    f"File reale non trovato: {target_file}"
+                )
+
+            # Lo schema del file reale è la nostra
+            # struttura ufficiale di riferimento.
+            current_schema = pd.read_csv(
+                target_file,
+                nrows=0
+            ).columns.tolist()
+
+            updated_schema = (
+                dataframe.columns.tolist()
+            )
+
+            if updated_schema != current_schema:
+                raise ValueError(
+                    f"Schema non valido per {key}. "
+                    f"Atteso: {current_schema}. "
+                    f"Ricevuto: {updated_schema}"
+                )
+
+            temp_file = (
+                temp_dir
+                / target_file.name
+            )
+
+            dataframe.to_csv(
+                temp_file,
+                index=False
+            )
+
+            # Rileggiamo immediatamente il file appena
+            # creato. Non ci fidiamo della sola scrittura.
+            reloaded = pd.read_csv(
+                temp_file
+            )
+
+            if (
+                reloaded.columns.tolist()
+                != current_schema
+            ):
+                raise ValueError(
+                    f"Schema alterato dopo la scrittura "
+                    f"del file temporaneo {key}"
+                )
+
+            if len(reloaded) != len(dataframe):
+                raise ValueError(
+                    f"Numero righe non coerente "
+                    f"nel file temporaneo {key}: "
+                    f"attese {len(dataframe)}, "
+                    f"rilette {len(reloaded)}"
+                )
+
+            temp_files[key] = temp_file
+
+    except Exception:
+
+        shutil.rmtree(
+            temp_dir,
+            ignore_errors=True
+        )
+
+        raise
+
+    return {
+        "temp_dir": temp_dir,
+        "files": temp_files
+    }
