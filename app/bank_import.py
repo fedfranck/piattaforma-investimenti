@@ -1071,3 +1071,99 @@ def build_import_history_record(
     }
 
     return record
+
+
+def save_import_history_record(
+    record,
+    history_file
+):
+    """
+    Salva un record nello storico delle importazioni.
+
+    Protezioni:
+    - verifica l'esistenza del file;
+    - verifica la struttura delle colonne;
+    - impedisce ID_Importazione duplicati.
+    """
+
+    history_file = Path(history_file)
+
+    if not history_file.exists():
+        raise FileNotFoundError(
+            f"File storico non trovato: {history_file}"
+        )
+
+    expected_columns = [
+        "ID_Importazione",
+        "Data_Riferimento",
+        "Data_Importazione",
+        "Titolare",
+        "Conto",
+        "File_Origine",
+        "Totale_Strumenti",
+        "Numero_Bond",
+        "Numero_Certificate",
+        "Numero_Fondi",
+        "Numero_Da_Classificare",
+        "Stato"
+    ]
+
+    history = pd.read_csv(history_file)
+
+    if list(history.columns) != expected_columns:
+        raise ValueError(
+            "Struttura STORICO_IMPORTAZIONI.csv non valida."
+        )
+
+    missing_fields = [
+        column
+        for column in expected_columns
+        if column not in record
+    ]
+
+    if missing_fields:
+        raise ValueError(
+            "Campi mancanti nel record storico: "
+            + ", ".join(missing_fields)
+        )
+
+    import_id = str(
+        record["ID_Importazione"]
+    ).strip()
+
+    if not history.empty:
+        existing_ids = (
+            history["ID_Importazione"]
+            .astype(str)
+            .str.strip()
+        )
+
+        if import_id in existing_ids.values:
+            raise ValueError(
+                "Importazione già presente nello storico: "
+                + import_id
+            )
+
+    new_row = pd.DataFrame(
+        [
+            {
+                column: record[column]
+                for column in expected_columns
+            }
+        ]
+    )
+
+    updated_history = pd.concat(
+        [
+            history,
+            new_row
+        ],
+        ignore_index=True
+    )
+
+    updated_history.to_csv(
+        history_file,
+        index=False
+    )
+
+    return updated_history
