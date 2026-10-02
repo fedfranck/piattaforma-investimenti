@@ -431,3 +431,49 @@ def preview_bond_update(
         )
 
     return bank_bonds
+
+
+def preview_certificate_update(
+    bank_df,
+    current_certificates
+):
+    """
+    Confronta i certificate importati dalla banca con il
+    portafoglio certificate attuale.
+
+    La funzione produce solo una preview.
+    Non modifica alcun file.
+    """
+
+    bank_certificates = bank_df[
+        bank_df["Tipo_Asset"] == "CERTIFICATE"
+    ].copy()
+
+    current = current_certificates.copy()
+
+    current_keys = set(
+        zip(
+            current["Titolare"].astype(str).str.strip().str.upper(),
+            current["Conto"].astype(str).str.strip().str.upper(),
+            current["ISIN"].astype(str).str.strip().str.upper()
+        )
+    )
+
+    def determine_status(row):
+        key = (
+            str(row["Titolare"]).strip().upper(),
+            str(row["Conto"]).strip().upper(),
+            str(row["ISIN"]).strip().upper()
+        )
+
+        if key in current_keys:
+            return "ESISTENTE"
+
+        return "NUOVO"
+
+    bank_certificates["Stato"] = bank_certificates.apply(
+        determine_status,
+        axis=1
+    )
+
+    return bank_certificates
