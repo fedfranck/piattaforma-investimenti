@@ -2471,3 +2471,220 @@ def prepare_portfolio_temp_files(
         "temp_dir": temp_dir,
         "files": temp_files
     }
+
+
+def commit_portfolio_temp_files(
+    temp_files,
+    target_files,
+    backup_root
+):
+    """
+    Sostituisce i file reali del portafoglio con i file
+    temporanei già validati.
+
+    Prima della sostituzione:
+    - crea un backup completo dei file reali.
+
+    In caso di errore:
+    - ripristina tutti i file reali dal backup;
+    - rilancia l'eccezione.
+
+    La funzione richiede esattamente i cinque portafogli:
+    bonds, certificates, funds, etfs, stocks.
+    """
+
+    expected_keys = {
+        "bonds",
+        "certificates",
+        "funds",
+        "etfs",
+        "stocks"
+    }
+
+    if set(temp_files.keys()) != expected_keys:
+        raise ValueError(
+            "temp_files deve contenere esattamente: "
+            "bonds, certificates, funds, etfs, stocks"
+        )
+
+    if set(target_files.keys()) != expected_keys:
+        raise ValueError(
+            "target_files deve contenere esattamente: "
+            "bonds, certificates, funds, etfs, stocks"
+        )
+
+    ordered_keys = [
+        "bonds",
+        "certificates",
+        "funds",
+        "etfs",
+        "stocks"
+    ]
+
+    # --------------------------------------------------
+    # 1. Verifica preventiva
+    # --------------------------------------------------
+
+    for key in ordered_keys:
+
+        temp_file = Path(
+            temp_files[key]
+        )
+
+        target_file = Path(
+            target_files[key]
+        )
+
+        if not temp_file.exists():
+            raise FileNotFoundError(
+                f"File temporaneo non trovato: {temp_file}"
+            )
+
+        if not target_file.exists():
+            raise FileNotFoundError(
+                f"File reale non trovato: {target_file}"
+            )
+
+    # --------------------------------------------------
+    # 2. Backup completo dei file reali
+    # --------------------------------------------------
+
+    backup_result = create_portfolio_backup(
+        files=[
+            target_files[key]
+            for key in ordered_keys
+        ],
+        backup_root=backup_root
+    )
+
+    backup_dir = Path(
+        backup_result["backup_dir"]
+    )
+
+    backup_files = {
+        Path(path).name: Path(path)
+        for path in backup_result["files"]
+    }
+
+    replaced_keys = []
+
+    try:
+
+        # --------------------------------------------------
+        # 3. Sostituzione controllata
+        # --------------------------------------------------
+
+        for key in ordered_keys:
+
+            temp_file = Path(
+                temp_files[key]
+            )
+
+            target_file = Path(
+                target_files[key]
+            )
+
+            shutil.copy2(
+                temp_file,
+                target_file
+            )
+
+            replaced_keys.append(
+                key
+            )
+
+        # --------------------------------------------------
+        # 4. Verifica finale
+        # --------------------------------------------------
+
+        for key in ordered_keys:
+
+            temp_file = Path(
+                temp_files[key]
+            )
+
+            target_file = Path(
+                target_files[key]
+            )
+
+            temp_df = pd.read_csv(
+                temp_file
+            )
+
+            target_df = pd.read_csv(
+                target_file
+            )
+
+            if (
+                temp_df.columns.tolist()
+                != target_df.columns.tolist()
+            ):
+                raise ValueError(
+                    f"Schema finale non coerente per {key}"
+                )
+
+            if len(temp_df) != len(target_df):
+                raise ValueError(
+                    f"Numero righe finale non coerente "
+                    f"per {key}"
+                )
+
+    except Exception as original_error:
+
+        # --------------------------------------------------
+        # 5. Rollback completo
+        # --------------------------------------------------
+
+        rollback_errors = []
+
+        for key in ordered_keys:
+
+            target_file = Path(
+                target_files[key]
+            )
+
+            backup_file = backup_files.get(
+                target_file.name
+            )
+
+            if (
+                backup_file is None
+                or not backup_file.exists()
+            ):
+                rollback_errors.append(
+                    f"{key}: backup non disponibile"
+                )
+                continue
+
+            try:
+
+                shutil.copy2(
+                    backup_file,
+                    target_file
+                )
+
+            except Exception as rollback_error:
+
+                rollback_errors.append(
+                    f"{key}: {rollback_error}"
+                )
+
+        if rollback_errors:
+
+            details = " | ".join(
+                rollback_errors
+            )
+
+            raise RuntimeError(
+                "Errore durante l'aggiornamento dei "
+                "portafogli e rollback non completato. "
+                f"Errore originale: {original_error}. "
+                f"Errori rollback: {details}"
+            ) from original_error
+
+        raise
+
+    return {
+        "backup_dir": backup_dir,
+        "replaced_keys": replaced_keys
+    }
