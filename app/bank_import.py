@@ -626,4 +626,206 @@ def preview_certificate_update(
         )
 
     return bank_certificates
-    return bank_certificates
+
+
+def preview_fund_update(
+    bank_df,
+    current_funds
+):
+    """
+    Confronta i fondi importati dalla banca con il
+    portafoglio fondi attuale.
+
+    La funzione produce solo una preview.
+    Non modifica alcun file.
+    """
+
+    bank_funds = bank_df[
+        bank_df["Tipo_Asset"] == "FONDO"
+    ].copy()
+
+    current = current_funds.copy()
+
+    bank_keys = set(
+        zip(
+            bank_funds["Titolare"].astype(str).str.strip().str.upper(),
+            bank_funds["Conto"].astype(str).str.strip().str.upper(),
+            bank_funds["ISIN"].astype(str).str.strip().str.upper()
+        )
+    )
+
+    comparison_columns = [
+        "Quantita",
+        "Prezzo_Carico",
+        "Prezzo_Attuale",
+        "Valore_Attuale",
+        "Plusvalenza",
+        "Plusvalenza_Percentuale"
+    ]
+
+    tolerance = 0.01
+
+    def find_current_row(row):
+        mask = (
+            current["Titolare"]
+            .astype(str)
+            .str.strip()
+            .str.upper()
+            == str(row["Titolare"]).strip().upper()
+        )
+
+        mask &= (
+            current["Conto"]
+            .astype(str)
+            .str.strip()
+            .str.upper()
+            == str(row["Conto"]).strip().upper()
+        )
+
+        mask &= (
+            current["ISIN"]
+            .astype(str)
+            .str.strip()
+            .str.upper()
+            == str(row["ISIN"]).strip().upper()
+        )
+
+        matches = current[mask]
+
+        if matches.empty:
+            return None
+
+        return matches.iloc[0]
+
+    def determine_status(row):
+        current_row = find_current_row(row)
+
+        if current_row is None:
+            return "NUOVO"
+
+        for column in comparison_columns:
+            bank_value = pd.to_numeric(
+                row[column],
+                errors="coerce"
+            )
+
+            current_value = pd.to_numeric(
+                current_row[column],
+                errors="coerce"
+            )
+
+            if pd.isna(bank_value) and pd.isna(current_value):
+                continue
+
+            if pd.isna(bank_value) or pd.isna(current_value):
+                return "AGGIORNATO"
+
+            if abs(bank_value - current_value) > tolerance:
+                return "AGGIORNATO"
+
+        return "INVARIATO"
+
+    def get_changes(row):
+        if row["Stato"] != "AGGIORNATO":
+            return ""
+
+        current_row = find_current_row(row)
+
+        if current_row is None:
+            return ""
+
+        changes = []
+
+        for column in comparison_columns:
+            bank_value = pd.to_numeric(
+                row[column],
+                errors="coerce"
+            )
+
+            current_value = pd.to_numeric(
+                current_row[column],
+                errors="coerce"
+            )
+
+            if pd.isna(bank_value) and pd.isna(current_value):
+                continue
+
+            if pd.isna(bank_value) or pd.isna(current_value):
+                changes.append(
+                    f"{column}: {current_value} -> {bank_value}"
+                )
+                continue
+
+            if abs(bank_value - current_value) > tolerance:
+                changes.append(
+                    f"{column}: {current_value} -> {bank_value}"
+                )
+
+        return " | ".join(changes)
+
+    bank_funds["Stato"] = bank_funds.apply(
+        determine_status,
+        axis=1
+    )
+
+    bank_funds["Variazioni"] = bank_funds.apply(
+        get_changes,
+        axis=1
+    )
+
+    import_scopes = set(
+        zip(
+            bank_funds["Titolare"].astype(str).str.strip().str.upper(),
+            bank_funds["Conto"].astype(str).str.strip().str.upper()
+        )
+    )
+
+    missing_rows = []
+
+    for _, current_row in current.iterrows():
+        scope = (
+            str(current_row["Titolare"]).strip().upper(),
+            str(current_row["Conto"]).strip().upper()
+        )
+
+        key = (
+            str(current_row["Titolare"]).strip().upper(),
+            str(current_row["Conto"]).strip().upper(),
+            str(current_row["ISIN"]).strip().upper()
+        )
+
+        if scope not in import_scopes:
+            continue
+
+        if key in bank_keys:
+            continue
+
+        missing_rows.append(
+            {
+                "Titolare": current_row["Titolare"],
+                "Conto": current_row["Conto"],
+                "ISIN": current_row["ISIN"],
+                "Descrizione": current_row.get(
+                    "Descrizione",
+                    ""
+                ),
+                "Stato": "ASSENTE_DAL_NUOVO_ESTRATTO",
+                "Variazioni": ""
+            }
+        )
+
+    if missing_rows:
+        missing_df = pd.DataFrame(
+            missing_rows
+        )
+
+        bank_funds = pd.concat(
+            [
+                bank_funds,
+                missing_df
+            ],
+            ignore_index=True,
+            sort=False
+        )
+
+    return bank_funds
