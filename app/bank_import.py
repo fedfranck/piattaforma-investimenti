@@ -297,7 +297,41 @@ def preview_bond_update(
         )
 
         current_lookup[key] = current_row
+    def get_changes(row):
+        key = (
+            str(row["Titolare"]).strip().upper(),
+            str(row["Conto"]).strip().upper(),
+            str(row["ISIN"]).strip().upper()
+        )
 
+        if key not in current_lookup:
+            return ""
+
+        current_row = current_lookup[key]
+
+        changes = []
+
+        for bank_column, current_column in comparison_columns.items():
+            new_value = row[bank_column]
+            old_value = current_row[current_column]
+
+            if pd.isna(new_value) and pd.isna(old_value):
+                continue
+
+            if pd.isna(new_value) or pd.isna(old_value):
+                changes.append(
+                    f"{bank_column}: {old_value} -> {new_value}"
+                )
+                continue
+
+            if abs(
+                float(new_value) - float(old_value)
+            ) > 0.01:
+                changes.append(
+                    f"{bank_column}: {old_value} -> {new_value}"
+                )
+
+        return " | ".join(changes)
     def determine_status(row):
         key = (
             str(row["Titolare"]).strip().upper(),
@@ -329,6 +363,11 @@ def preview_bond_update(
 
     bank_bonds["Stato"] = bank_bonds.apply(
         determine_status,
+        axis=1
+    )
+
+    bank_bonds["Variazioni"] = bank_bonds.apply(
+        get_changes,
         axis=1
     )
 
