@@ -2318,6 +2318,198 @@ def build_updated_portfolios(
         "etfs": updated_etfs,
         "stocks": updated_stocks
     }
+def build_updated_import_history(
+    record,
+    current_history
+):
+    """
+    Costruisce lo storico importazioni aggiornato in memoria.
+
+    Non scrive alcun file.
+
+    Protezioni:
+    - verifica che current_history sia un DataFrame;
+    - verifica lo schema ufficiale dello storico;
+    - verifica che il record contenga tutti i campi;
+    - impedisce ID_Importazione duplicati.
+    """
+
+    expected_columns = [
+        "ID_Importazione",
+        "Data_Riferimento",
+        "Data_Importazione",
+        "Titolare",
+        "Conto",
+        "File_Origine",
+        "Totale_Strumenti",
+        "Numero_Bond",
+        "Numero_Certificate",
+        "Numero_Fondi",
+        "Numero_ETF",
+        "Numero_Azioni",
+        "Numero_Da_Classificare",
+        "Stato"
+    ]
+
+    if not isinstance(
+        current_history,
+        pd.DataFrame
+    ):
+        raise TypeError(
+            "current_history deve essere "
+            "un DataFrame pandas"
+        )
+
+    if (
+        current_history.columns.tolist()
+        != expected_columns
+    ):
+        raise ValueError(
+            "Struttura storico importazioni "
+            "non valida."
+        )
+
+    missing_fields = [
+        column
+        for column in expected_columns
+        if column not in record
+    ]
+
+    if missing_fields:
+        raise ValueError(
+            "Campi mancanti nel record storico: "
+            + ", ".join(missing_fields)
+        )
+
+    import_id = str(
+        record["ID_Importazione"]
+    ).strip()
+
+    if not current_history.empty:
+
+        existing_ids = (
+            current_history[
+                "ID_Importazione"
+            ]
+            .astype(str)
+            .str.strip()
+        )
+
+        if import_id in existing_ids.values:
+            raise ValueError(
+                "Importazione già presente "
+                "nello storico: "
+                + import_id
+            )
+
+    new_row = pd.DataFrame(
+        [
+            {
+                column: record[column]
+                for column in expected_columns
+            }
+        ]
+    )
+
+    updated_history = pd.concat(
+        [
+            current_history,
+            new_row
+        ],
+        ignore_index=True
+    )
+
+    return updated_history
+def prepare_import_history_temp_file(
+    updated_history,
+    history_file,
+    temp_dir
+):
+    """
+    Scrive lo storico aggiornato nella directory temporanea
+    e verifica che il CSV prodotto sia rileggibile e coerente.
+
+    Non modifica il file storico reale.
+    """
+
+    if not isinstance(
+        updated_history,
+        pd.DataFrame
+    ):
+        raise TypeError(
+            "updated_history deve essere "
+            "un DataFrame pandas"
+        )
+
+    history_file = Path(
+        history_file
+    )
+
+    temp_dir = Path(
+        temp_dir
+    )
+
+    if not history_file.exists():
+        raise FileNotFoundError(
+            f"File storico reale non trovato: "
+            f"{history_file}"
+        )
+
+    if not temp_dir.exists():
+        raise FileNotFoundError(
+            f"Directory temporanea non trovata: "
+            f"{temp_dir}"
+        )
+
+    current_schema = pd.read_csv(
+        history_file,
+        nrows=0
+    ).columns.tolist()
+
+    updated_schema = (
+        updated_history.columns.tolist()
+    )
+
+    if updated_schema != current_schema:
+        raise ValueError(
+            "Schema non valido per lo storico. "
+            f"Atteso: {current_schema}. "
+            f"Ricevuto: {updated_schema}"
+        )
+
+    temp_file = (
+        temp_dir
+        / history_file.name
+    )
+
+    updated_history.to_csv(
+        temp_file,
+        index=False
+    )
+
+    reloaded = pd.read_csv(
+        temp_file
+    )
+
+    if (
+        reloaded.columns.tolist()
+        != current_schema
+    ):
+        raise ValueError(
+            "Schema alterato dopo la scrittura "
+            "dello storico temporaneo"
+        )
+
+    if len(reloaded) != len(
+        updated_history
+    ):
+        raise ValueError(
+            "Numero righe non coerente nello "
+            "storico temporaneo: "
+            f"attese {len(updated_history)}, "
+            f"rilette {len(reloaded)}"
+        )
+    return temp_file
 
 
 def prepare_portfolio_temp_files(
@@ -2682,6 +2874,240 @@ def commit_portfolio_temp_files(
             raise RuntimeError(
                 "Errore durante l'aggiornamento dei "
                 "portafogli e rollback non completato. "
+                f"Errore originale: {original_error}. "
+                f"Errori rollback: {details}"
+            ) from original_error
+
+        raise
+
+    return {
+        "backup_dir": backup_dir,
+        "replaced_keys": replaced_keys
+    }
+
+
+def commit_import_transaction(
+    temp_files,
+    target_files,
+    backup_root
+):
+    """
+    Esegue la transazione completa dell'importazione bancaria.
+
+    Gestisce come unica operazione logica:
+    - Bond
+    - Certificate
+    - Fondi
+    - ETF
+    - Azioni
+    - Storico importazioni
+
+    Prima della sostituzione crea un backup completo
+    dei sei file.
+
+    In caso di errore tenta il rollback di tutti
+    i sei file.
+
+    Se anche il rollback incontra errori, continua
+    comunque a tentare il ripristino degli altri file
+    e segnala i problemi riscontrati.
+    """
+
+    expected_keys = {
+        "bonds",
+        "certificates",
+        "funds",
+        "etfs",
+        "stocks",
+        "history"
+    }
+
+    if set(temp_files.keys()) != expected_keys:
+        raise ValueError(
+            "temp_files deve contenere esattamente: "
+            "bonds, certificates, funds, etfs, "
+            "stocks, history"
+        )
+
+    if set(target_files.keys()) != expected_keys:
+        raise ValueError(
+            "target_files deve contenere esattamente: "
+            "bonds, certificates, funds, etfs, "
+            "stocks, history"
+        )
+
+    ordered_keys = [
+        "bonds",
+        "certificates",
+        "funds",
+        "etfs",
+        "stocks",
+        "history"
+    ]
+
+    # --------------------------------------------------
+    # 1. Verifica preventiva dei 6 file
+    # --------------------------------------------------
+
+    for key in ordered_keys:
+
+        temp_file = Path(
+            temp_files[key]
+        )
+
+        target_file = Path(
+            target_files[key]
+        )
+
+        if not temp_file.exists():
+            raise FileNotFoundError(
+                f"File temporaneo non trovato: "
+                f"{temp_file}"
+            )
+
+        if not target_file.exists():
+            raise FileNotFoundError(
+                f"File reale non trovato: "
+                f"{target_file}"
+            )
+
+    # --------------------------------------------------
+    # 2. Backup completo dei 6 file reali
+    # --------------------------------------------------
+
+    backup_result = create_portfolio_backup(
+        files=[
+            target_files[key]
+            for key in ordered_keys
+        ],
+        backup_root=backup_root
+    )
+
+    backup_dir = Path(
+        backup_result["backup_dir"]
+    )
+
+    backup_files = {
+        Path(path).name: Path(path)
+        for path in backup_result["files"]
+    }
+
+    replaced_keys = []
+
+    try:
+
+        # --------------------------------------------------
+        # 3. Sostituzione controllata dei 6 file
+        # --------------------------------------------------
+
+        for key in ordered_keys:
+
+            temp_file = Path(
+                temp_files[key]
+            )
+
+            target_file = Path(
+                target_files[key]
+            )
+
+            shutil.copy2(
+                temp_file,
+                target_file
+            )
+
+            replaced_keys.append(
+                key
+            )
+
+        # --------------------------------------------------
+        # 4. Verifica finale dei 6 file
+        # --------------------------------------------------
+
+        for key in ordered_keys:
+
+            temp_file = Path(
+                temp_files[key]
+            )
+
+            target_file = Path(
+                target_files[key]
+            )
+
+            temp_df = pd.read_csv(
+                temp_file
+            )
+
+            target_df = pd.read_csv(
+                target_file
+            )
+
+            if (
+                temp_df.columns.tolist()
+                != target_df.columns.tolist()
+            ):
+                raise ValueError(
+                    f"Schema finale non coerente "
+                    f"per {key}"
+                )
+
+            if len(temp_df) != len(
+                target_df
+            ):
+                raise ValueError(
+                    f"Numero righe finale non coerente "
+                    f"per {key}"
+                )
+
+    except Exception as original_error:
+
+        # --------------------------------------------------
+        # 5. Rollback completo dei 6 file
+        # --------------------------------------------------
+
+        rollback_errors = []
+
+        for key in ordered_keys:
+
+            target_file = Path(
+                target_files[key]
+            )
+
+            backup_file = backup_files.get(
+                target_file.name
+            )
+
+            if (
+                backup_file is None
+                or not backup_file.exists()
+            ):
+                rollback_errors.append(
+                    f"{key}: backup non disponibile"
+                )
+                continue
+
+            try:
+
+                shutil.copy2(
+                    backup_file,
+                    target_file
+                )
+
+            except Exception as rollback_error:
+
+                rollback_errors.append(
+                    f"{key}: {rollback_error}"
+                )
+
+        if rollback_errors:
+
+            details = " | ".join(
+                rollback_errors
+            )
+
+            raise RuntimeError(
+                "Errore durante la transazione "
+                "di importazione e rollback "
+                "non completato. "
                 f"Errore originale: {original_error}. "
                 f"Errori rollback: {details}"
             ) from original_error
