@@ -249,3 +249,87 @@ def classify_bank_assets(
     )
 
     return result
+
+
+def preview_bond_update(
+    bank_df,
+    current_bonds
+):
+    """
+    Confronta i bond importati dalla banca con il
+    portafoglio bond attuale.
+
+    La funzione produce solo una preview.
+    Non modifica alcun file.
+    """
+
+    bank_bonds = bank_df[
+        bank_df["Tipo_Asset"] == "BOND"
+    ].copy()
+
+    current = current_bonds.copy()
+
+
+    current_keys = set(
+        zip(
+            current["Titolare"].astype(str).str.strip().str.upper(),
+            current["Conto"].astype(str).str.strip().str.upper(),
+            current["ISIN"].astype(str).str.strip().str.upper()
+        )
+    )
+
+    comparison_columns = {
+        "Quantita": "Quantita_Nominale",
+        "Prezzo_Carico": "Prezzo_Carico",
+        "Prezzo_Attuale": "Prezzo_Attuale",
+        "Valore_Attuale": "Valore_Attuale",
+        "Plusvalenza": "Plusvalenza",
+        "Plusvalenza_Percentuale": "Plusvalenza_Percentuale"
+    }
+
+    current_lookup = {}
+
+    for _, current_row in current.iterrows():
+        key = (
+            str(current_row["Titolare"]).strip().upper(),
+            str(current_row["Conto"]).strip().upper(),
+            str(current_row["ISIN"]).strip().upper()
+        )
+
+        current_lookup[key] = current_row
+
+    def determine_status(row):
+        key = (
+            str(row["Titolare"]).strip().upper(),
+            str(row["Conto"]).strip().upper(),
+            str(row["ISIN"]).strip().upper()
+        )
+
+        if key not in current_keys:
+            return "NUOVO"
+
+        current_row = current_lookup[key]
+
+        for bank_column, current_column in comparison_columns.items():
+            bank_value = row[bank_column]
+            current_value = current_row[current_column]
+
+            if pd.isna(bank_value) and pd.isna(current_value):
+                continue
+
+            if pd.isna(bank_value) or pd.isna(current_value):
+                return "AGGIORNATO"
+
+            if abs(
+                float(bank_value) - float(current_value)
+            ) > 0.01:
+                return "AGGIORNATO"
+
+        return "INVARIATO"
+
+    bank_bonds["Stato"] = bank_bonds.apply(
+        determine_status,
+        axis=1
+    )
+
+    return bank_bonds
