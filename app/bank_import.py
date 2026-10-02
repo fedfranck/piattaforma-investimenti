@@ -180,6 +180,19 @@ def classify_bank_assets(
 
     bond_isins = set()
     certificate_isins = set()
+    instrument_types = {}
+
+    if (
+        instruments is not None
+        and not instruments.empty
+        and "ISIN" in instruments.columns
+        and "Tipo_Asset" in instruments.columns
+    ):
+        instrument_types = {
+            str(row["ISIN"]).strip().upper():
+            str(row["Tipo_Asset"]).strip().upper()
+            for _, row in instruments.iterrows()
+        }
 
     if (
         bond_catalog is not None
@@ -215,6 +228,9 @@ def classify_bank_assets(
         description = str(
             row["Descrizione"]
         ).strip().upper()
+
+        if isin in instrument_types:
+            return instrument_types[isin]
 
         if isin in bond_isins:
             return "BOND"
