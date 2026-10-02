@@ -829,3 +829,120 @@ def preview_fund_update(
         )
 
     return bank_funds
+
+
+def preview_bank_import(
+    bank_df,
+    current_bonds,
+    current_certificates,
+    current_funds
+):
+    """
+    Crea una preview unificata dell'import bancario.
+
+    Riunisce:
+    - bond;
+    - certificate;
+    - fondi;
+    - eventuali strumenti da classificare.
+
+    Non modifica alcun file.
+    """
+
+    bond_preview = preview_bond_update(
+        bank_df,
+        current_bonds
+    )
+
+    bond_preview["Tipo_Asset"] = "BOND"
+
+    certificate_preview = preview_certificate_update(
+        bank_df,
+        current_certificates
+    )
+
+    certificate_preview["Tipo_Asset"] = "CERTIFICATE"
+
+    fund_preview = preview_fund_update(
+        bank_df,
+        current_funds
+    )
+
+    fund_preview["Tipo_Asset"] = "FONDO"
+
+    previews = [
+        bond_preview,
+        certificate_preview,
+        fund_preview
+    ]
+
+    unknown = bank_df[
+        bank_df["Tipo_Asset"] == "DA_CLASSIFICARE"
+    ].copy()
+
+    if not unknown.empty:
+        unknown["Stato"] = "DA_CLASSIFICARE"
+        unknown["Variazioni"] = ""
+        previews.append(unknown)
+
+    unified = pd.concat(
+        previews,
+        ignore_index=True,
+        sort=False
+    )
+
+    preferred_columns = [
+        "Titolare",
+        "Conto",
+        "Tipo_Asset",
+        "ISIN",
+        "Descrizione",
+        "Quantita",
+        "Prezzo_Carico",
+        "Prezzo_Attuale",
+        "Valore_Attuale",
+        "Plusvalenza",
+        "Plusvalenza_Percentuale",
+        "Data_Riferimento",
+        "Data_Importazione",
+        "Stato",
+        "Variazioni"
+    ]
+
+    available_columns = [
+        column
+        for column in preferred_columns
+        if column in unified.columns
+    ]
+
+    return unified[available_columns]
+
+
+def validate_bank_import_preview(preview):
+    """
+    Verifica se la preview dell'import bancario
+    può procedere alla fase di conferma.
+
+    Non modifica alcun file.
+    """
+
+    blocking_rows = preview[
+        preview["Stato"] == "DA_CLASSIFICARE"
+    ].copy()
+
+    if not blocking_rows.empty:
+        return {
+            "ready": False,
+            "message": (
+                f"Importazione bloccata: "
+                f"{len(blocking_rows)} strumento/i "
+                f"da classificare."
+            ),
+            "blocking_rows": blocking_rows
+        }
+
+    return {
+        "ready": True,
+        "message": "Importazione pronta per la conferma.",
+        "blocking_rows": blocking_rows
+    }
