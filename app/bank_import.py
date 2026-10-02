@@ -2253,3 +2253,64 @@ def build_updated_stock_portfolio(
             )
 
     return updated
+
+
+def build_updated_portfolios(
+    bank_df,
+    current_bonds,
+    current_certificates,
+    current_funds,
+    current_etfs,
+    current_stocks
+):
+    """
+    Costruisce in memoria tutti i portafogli aggiornati
+    a partire dall'estratto bancario già classificato.
+
+    La funzione:
+    - aggiorna Bond;
+    - aggiorna Certificate;
+    - aggiorna Fondi;
+    - aggiorna ETF;
+    - aggiorna Azioni;
+    - non modifica i DataFrame originali;
+    - non scrive alcun file.
+
+    Restituisce un dizionario contenente i cinque
+    portafogli aggiornati.
+    """
+
+    updated_bonds = build_updated_bond_portfolio(
+        bank_df,
+        current_bonds
+    )
+
+    updated_certificates = (
+        build_updated_certificate_portfolio(
+            bank_df,
+            current_certificates
+        )
+    )
+
+    updated_funds = build_updated_fund_portfolio(
+        bank_df,
+        current_funds
+    )
+
+    updated_etfs = build_updated_etf_portfolio(
+        bank_df,
+        current_etfs
+    )
+
+    updated_stocks = build_updated_stock_portfolio(
+        bank_df,
+        current_stocks
+    )
+
+    return {
+        "bonds": updated_bonds,
+        "certificates": updated_certificates,
+        "funds": updated_funds,
+        "etfs": updated_etfs,
+        "stocks": updated_stocks
+    }
