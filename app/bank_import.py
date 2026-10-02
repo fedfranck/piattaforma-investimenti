@@ -278,6 +278,14 @@ def preview_bond_update(
         )
     )
 
+    bank_keys = set(
+        zip(
+            bank_bonds["Titolare"].astype(str).str.strip().str.upper(),
+            bank_bonds["Conto"].astype(str).str.strip().str.upper(),
+            bank_bonds["ISIN"].astype(str).str.strip().str.upper()
+        )
+    )
+
     comparison_columns = {
         "Quantita": "Quantita_Nominale",
         "Prezzo_Carico": "Prezzo_Carico",
@@ -370,5 +378,56 @@ def preview_bond_update(
         get_changes,
         axis=1
     )
+
+    import_scopes = set(
+        zip(
+            bank_bonds["Titolare"].astype(str).str.strip().str.upper(),
+            bank_bonds["Conto"].astype(str).str.strip().str.upper()
+        )
+    )
+
+    missing_rows = []
+
+    for _, current_row in current.iterrows():
+        scope = (
+            str(current_row["Titolare"]).strip().upper(),
+            str(current_row["Conto"]).strip().upper()
+        )
+
+        key = (
+            str(current_row["Titolare"]).strip().upper(),
+            str(current_row["Conto"]).strip().upper(),
+            str(current_row["ISIN"]).strip().upper()
+        )
+
+        if scope not in import_scopes:
+            continue
+
+        if key in bank_keys:
+            continue
+
+        missing_rows.append(
+            {
+                "Titolare": current_row["Titolare"],
+                "Conto": current_row["Conto"],
+                "ISIN": current_row["ISIN"],
+                "Descrizione": current_row["Descrizione"],
+                "Stato": "ASSENTE_DAL_NUOVO_ESTRATTO",
+                "Variazioni": ""
+            }
+        )
+    if missing_rows:
+        missing_df = pd.DataFrame(
+            missing_rows
+        )
+
+        bank_bonds = pd.concat(
+            [
+                bank_bonds,
+                missing_df
+            ],
+            ignore_index=True,
+            sort=False
+        )
 
     return bank_bonds
