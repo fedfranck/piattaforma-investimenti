@@ -1523,6 +1523,8 @@ def build_import_history_record(
             0
         ),
         "Numero_Fondi": asset_counts.get("FONDO", 0),
+        "Numero_ETF": asset_counts.get("ETF", 0),
+        "Numero_Azioni": asset_counts.get("AZIONE", 0),
         "Numero_Da_Classificare": asset_counts.get(
             "DA_CLASSIFICARE",
             0
@@ -1564,6 +1566,8 @@ def save_import_history_record(
         "Numero_Bond",
         "Numero_Certificate",
         "Numero_Fondi",
+        "Numero_ETF",
+        "Numero_Azioni",
         "Numero_Da_Classificare",
         "Stato"
     ]
