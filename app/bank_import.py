@@ -2672,7 +2672,179 @@ def prepare_portfolio_temp_files(
         "temp_dir": temp_dir,
         "files": temp_files
     }
+def prepare_complete_bank_import(
+    file_path,
+    reference_date,
+    holder,
+    account,
+    current_bonds,
+    current_certificates,
+    current_funds,
+    current_etfs,
+    current_stocks,
+    current_history,
+    portfolio_target_files,
+    history_file,
+    temp_root,
+    bond_catalog=None,
+    instruments=None
+):
+    """
+    Prepara l'importazione bancaria completa senza
+    modificare i file reali.
 
+    Flusso:
+    1. legge e classifica l'estratto bancario;
+    2. genera e valida la preview;
+    3. costruisce i 5 portafogli aggiornati in memoria;
+    4. costruisce lo storico aggiornato in memoria;
+    5. crea e valida i 5 CSV temporanei dei portafogli;
+    6. crea e valida il CSV temporaneo dello storico.
+
+    Restituisce tutti gli elementi necessari per una
+    successiva conferma e transazione.
+
+    Se la preview non è valida, l'importazione viene
+    bloccata prima della preparazione dei file temporanei.
+    """
+
+    # --------------------------------------------------
+    # 1. Lettura, classificazione e preview
+    # --------------------------------------------------
+
+    preparation = prepare_bank_import(
+        file_path=file_path,
+        reference_date=reference_date,
+        holder=holder,
+        account=account,
+        current_bonds=current_bonds,
+        current_certificates=current_certificates,
+        current_funds=current_funds,
+        current_etfs=current_etfs,
+        current_stocks=current_stocks,
+        bond_catalog=bond_catalog,
+        instruments=instruments
+    )
+
+    validation = preparation[
+        "validation"
+    ]
+
+    # --------------------------------------------------
+    # 2. Blocco preventivo
+    # --------------------------------------------------
+
+    if not validation.get(
+        "ready",
+        False
+    ):
+        raise ValueError(
+            "Importazione bancaria non valida: "
+            + str(
+                validation.get(
+                    "message",
+                    "validazione non superata"
+                )
+            )
+        )
+
+    bank_df = preparation[
+        "bank_data"
+    ]
+
+    history_record = preparation[
+        "history_record"
+    ]
+
+    # --------------------------------------------------
+    # 3. Costruzione dei 5 portafogli in memoria
+    # --------------------------------------------------
+
+    updated_portfolios = build_updated_portfolios(
+        bank_df=bank_df,
+        current_bonds=current_bonds,
+        current_certificates=current_certificates,
+        current_funds=current_funds,
+        current_etfs=current_etfs,
+        current_stocks=current_stocks
+    )
+
+    # --------------------------------------------------
+    # 4. Costruzione dello storico in memoria
+    # --------------------------------------------------
+
+    updated_history = build_updated_import_history(
+        record=history_record,
+        current_history=current_history
+    )
+
+    # --------------------------------------------------
+    # 5. Preparazione dei 5 portafogli temporanei
+    # --------------------------------------------------
+
+    portfolio_temp_result = (
+        prepare_portfolio_temp_files(
+            updated_portfolios=updated_portfolios,
+            target_files=portfolio_target_files,
+            temp_root=temp_root
+        )
+    )
+
+    temp_dir = portfolio_temp_result[
+        "temp_dir"
+    ]
+
+    # --------------------------------------------------
+    # 6. Preparazione dello storico temporaneo
+    # --------------------------------------------------
+
+    try:
+
+        history_temp_file = (
+            prepare_import_history_temp_file(
+                updated_history=updated_history,
+                history_file=history_file,
+                temp_dir=temp_dir
+            )
+        )
+
+    except Exception:
+
+        # Se il sesto file fallisce, eliminiamo anche
+        # i cinque file temporanei già preparati.
+        shutil.rmtree(
+            temp_dir,
+            ignore_errors=True
+        )
+
+        raise
+
+    # --------------------------------------------------
+    # 7. Dizionario completo dei 6 file temporanei
+    # --------------------------------------------------
+
+    temp_files = dict(
+        portfolio_temp_result["files"]
+    )
+
+    temp_files["history"] = (
+        history_temp_file
+    )
+
+    # --------------------------------------------------
+    # 8. Risultato della preparazione
+    # --------------------------------------------------
+
+    return {
+        "bank_data": bank_df,
+        "preview": preparation["preview"],
+        "validation": validation,
+        "history_record": history_record,
+        "updated_portfolios": updated_portfolios,
+        "updated_history": updated_history,
+        "temp_dir": temp_dir,
+        "temp_files": temp_files
+    }
 
 def commit_portfolio_temp_files(
     temp_files,
