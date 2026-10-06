@@ -1639,6 +1639,8 @@ def prepare_bank_import(
     current_bonds,
     current_certificates,
     current_funds,
+    current_etfs=None,
+    current_stocks=None,
     bond_catalog=None,
     instruments=None
 ):
@@ -1649,6 +1651,7 @@ def prepare_bank_import(
     - lettura e normalizzazione del CSV bancario;
     - classificazione degli strumenti;
     - generazione della preview unificata;
+    - gestione di Bond, Certificate, Fondi, ETF e Azioni;
     - validazione della preview;
     - preparazione del record storico.
 
@@ -1673,7 +1676,9 @@ def prepare_bank_import(
         bank_df=bank_df,
         current_bonds=current_bonds,
         current_certificates=current_certificates,
-        current_funds=current_funds
+        current_funds=current_funds,
+        current_etfs=current_etfs,
+        current_stocks=current_stocks
     )
 
     validation = validate_bank_import_preview(
