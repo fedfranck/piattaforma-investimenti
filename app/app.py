@@ -11,6 +11,12 @@ if str(APP_DIR) not in sys.path:
     sys.path.insert(0, str(APP_DIR))
 
 from database import load_portfolio_data, sync_to_sqlite
+
+from bank_import import (
+    prepare_complete_bank_import,
+    execute_prepared_bank_import
+)
+
 from calcoli import (
     enrich_bonds, enrich_certificates, portfolio_kpis,
     coupon_forecast, bond_rotation_candidates, certificate_alerts
@@ -26,6 +32,36 @@ def load_data():
     return load_portfolio_data(ROOT / "data", ROOT)
 
 bonds, certs, underlyings, coupons, catalog, liquidity, holders = load_data()
+
+# Copia del database Bond con lo schema originale.
+# Viene usata dall'importatore bancario Level 2 prima
+# dell'arricchimento grafico con la colonna Emittente.
+bank_import_bonds = bonds.copy()
+
+# ============================================================
+# ARCHIVI AGGIUNTIVI PER IMPORTAZIONE BANCARIA LEVEL 2
+# ============================================================
+
+funds = pd.read_csv(
+    ROOT / "data" / "FONDI_PORTAFOGLIO.csv"
+)
+
+etfs = pd.read_csv(
+    ROOT / "data" / "ETF_PORTAFOGLIO.csv"
+)
+
+stocks = pd.read_csv(
+    ROOT / "data" / "AZIONI_PORTAFOGLIO.csv"
+)
+
+import_history = pd.read_csv(
+    ROOT / "data" / "STORICO_IMPORTAZIONI.csv"
+)
+
+instruments = pd.read_csv(
+    ROOT / "data" / "STRUMENTI.csv",
+    sep=";"
+)
 
 # Completa il portafoglio Bond con l'emittente presente nel catalogo
 if "Emittente" not in bonds.columns and not catalog.empty:
@@ -174,7 +210,438 @@ if uploaded_csv is not None:
                 st.rerun()
 
     except Exception as exc:
-        st.sidebar.error(f"Errore nell'importazione: {exc}")
+        st.sidebar.error(f"Errore nell'importazione: {exc}"
+        )
+
+if "bank_import_success" in st.session_state:
+    st.sidebar.success(
+        st.session_state.pop(
+            "bank_import_success"
+        )
+    )
+
+
+# ============================================================
+# IMPORTAZIONE PORTAFOGLIO BANCA - LEVEL 2
+# ============================================================
+
+st.sidebar.divider()
+
+st.sidebar.subheader(
+    "🏦 Importa portafoglio banca"
+)
+
+st.sidebar.caption(
+    "Importazione automatica dell'estratto titoli "
+    "con preview e conferma prima dell'aggiornamento."
+)
+
+bank_uploaded_file = st.sidebar.file_uploader(
+    "Carica I_miei_titoli.csv",
+    type=["csv"],
+    key="bank_portfolio_uploader"
+)
+bank_holder_options = []
+
+if (
+    not holders.empty
+    and "Titolare" in holders.columns
+):
+    bank_holder_options = sorted(
+        holders["Titolare"]
+        .dropna()
+        .astype(str)
+        .unique()
+        .tolist()
+    )
+
+bank_holder = st.sidebar.selectbox(
+    "Titolare del portafoglio",
+    bank_holder_options,
+    key="bank_import_holder"
+)
+
+bank_account = st.sidebar.text_input(
+    "Conto / Banca",
+    value="Mediobanca",
+    key="bank_import_account"
+)
+
+bank_reference_date = st.sidebar.date_input(
+    "Data di riferimento",
+    key="bank_import_reference_date"
+)
+
+if st.sidebar.button(
+    "🔍 Analizza portafoglio",
+    key="bank_import_analyze"
+):
+
+    if bank_uploaded_file is None:
+
+        st.sidebar.error(
+            "Carica prima il file I_miei_titoli.csv."
+        )
+
+    elif not bank_holder:
+
+        st.sidebar.error(
+            "Seleziona il titolare del portafoglio."
+        )
+
+    elif not bank_account.strip():
+
+        st.sidebar.error(
+            "Inserisci il conto o la banca."
+        )
+
+    else:
+
+        try:
+
+            # ------------------------------------------
+            # Salva temporaneamente il file caricato
+            # ------------------------------------------
+
+            import_dir = (
+                ROOT / "import"
+            )
+
+            import_dir.mkdir(
+                exist_ok=True
+            )
+
+            uploaded_bank_path = (
+                import_dir
+                / "I_miei_titoli_streamlit.csv"
+            )
+
+            uploaded_bank_path.write_bytes(
+                bank_uploaded_file.getvalue()
+            )
+
+            # ------------------------------------------
+            # File reali gestiti dalla transazione
+            # ------------------------------------------
+
+            portfolio_target_files = {
+                "bonds":
+                    ROOT / "data"
+                    / "BOND_PORTAFOGLIO.csv",
+
+                "certificates":
+                    ROOT / "data"
+                    / "CERTIFICATES_PORTAFOGLIO.csv",
+
+                "funds":
+                    ROOT / "data"
+                    / "FONDI_PORTAFOGLIO.csv",
+
+                "etfs":
+                    ROOT / "data"
+                    / "ETF_PORTAFOGLIO.csv",
+
+                "stocks":
+                    ROOT / "data"
+                    / "AZIONI_PORTAFOGLIO.csv"
+            }
+
+            history_file = (
+                ROOT / "data"
+                / "STORICO_IMPORTAZIONI.csv"
+            )
+
+            temp_root = (
+                ROOT / "import" / "temp"
+            )
+
+            temp_root.mkdir(
+                parents=True,
+                exist_ok=True
+            )
+
+            # ------------------------------------------
+            # FASE A: preparazione SENZA scrittura
+            # ------------------------------------------
+
+            bank_preparation = (
+                prepare_complete_bank_import(
+                    file_path=uploaded_bank_path,
+                    reference_date=(
+                        bank_reference_date.isoformat()
+                    ),
+                    holder=bank_holder,
+                    account=bank_account.strip(),
+                    current_bonds=bank_import_bonds,
+                    current_certificates=certs,
+                    current_funds=funds,
+                    current_etfs=etfs,
+                    current_stocks=stocks,
+                    current_history=import_history,
+                    portfolio_target_files=(
+                        portfolio_target_files
+                    ),
+                    history_file=history_file,
+                    temp_root=temp_root,
+                    bond_catalog=catalog,
+                    instruments=instruments
+                )
+            )
+
+            # ------------------------------------------
+            # Conserva la preparazione tra i rerun
+            # ------------------------------------------
+
+            st.session_state[
+                "bank_import_preparation"
+            ] = bank_preparation
+
+            st.session_state[
+                "bank_import_target_files"
+            ] = {
+                **portfolio_target_files,
+                "history": history_file
+            }
+
+            st.sidebar.success(
+                "Analisi completata. "
+                "Nessun file reale è stato modificato."
+            )
+
+        except Exception as exc:
+
+            st.session_state.pop(
+                "bank_import_preparation",
+                None
+            )
+
+            st.session_state.pop(
+                "bank_import_target_files",
+                None
+            )
+
+            st.sidebar.error(
+                f"Errore nell'analisi: {exc}"
+            )
+
+# ============================================================
+# PREVIEW IMPORTAZIONE BANCARIA - LEVEL 2
+# ============================================================
+
+if "bank_import_preparation" in st.session_state:
+
+    bank_preparation = st.session_state[
+        "bank_import_preparation"
+    ]
+
+    bank_preview = bank_preparation[
+        "preview"
+    ]
+
+    bank_validation = bank_preparation[
+        "validation"
+    ]
+
+    st.sidebar.divider()
+
+    st.sidebar.markdown(
+        "### 🔎 Anteprima importazione"
+    )
+
+    # --------------------------------------------------------
+    # Conteggio strumenti per asset class
+    # --------------------------------------------------------
+
+    asset_counts = (
+        bank_preview["Tipo_Asset"]
+        .value_counts()
+        .to_dict()
+    )
+
+    st.sidebar.write(
+        f"**Bond:** "
+        f"{asset_counts.get('BOND', 0)}"
+    )
+
+    st.sidebar.write(
+        f"**Certificate:** "
+        f"{asset_counts.get('CERTIFICATE', 0)}"
+    )
+
+    st.sidebar.write(
+        f"**Fondi:** "
+        f"{asset_counts.get('FONDO', 0)}"
+    )
+
+    st.sidebar.write(
+        f"**ETF:** "
+        f"{asset_counts.get('ETF', 0)}"
+    )
+
+    st.sidebar.write(
+        f"**Azioni:** "
+        f"{asset_counts.get('AZIONE', 0)}"
+    )
+
+    st.sidebar.write(
+        f"**Da classificare:** "
+        f"{asset_counts.get('DA_CLASSIFICARE', 0)}"
+    )
+
+    # --------------------------------------------------------
+    # Conteggio variazioni
+    # --------------------------------------------------------
+
+    if "Stato" in bank_preview.columns:
+
+        status_counts = (
+            bank_preview["Stato"]
+            .value_counts()
+            .to_dict()
+        )
+
+        st.sidebar.markdown(
+            "**Variazioni rilevate**"
+        )
+
+        st.sidebar.write(
+            f"Nuovi: "
+            f"{status_counts.get('NUOVO', 0)}"
+        )
+
+        st.sidebar.write(
+            f"Aggiornati: "
+            f"{status_counts.get('AGGIORNATO', 0)}"
+        )
+
+        st.sidebar.write(
+            f"Invariati: "
+            f"{status_counts.get('INVARIATO', 0)}"
+        )
+
+        st.sidebar.write(
+            "Assenti dal nuovo estratto: "
+            f"{status_counts.get(
+                'ASSENTE_DAL_NUOVO_ESTRATTO',
+                0
+            )}"
+        )
+
+    # --------------------------------------------------------
+    # Stato validazione
+    # --------------------------------------------------------
+
+    if bank_validation.get(
+        "ready",
+        False
+    ):
+
+        st.sidebar.success(
+            "Importazione pronta per la conferma."
+        )
+
+    else:
+
+        st.sidebar.error(
+            bank_validation.get(
+                "message",
+                "Importazione non valida."
+            )
+        )
+
+    # --------------------------------------------------------
+    # Tabella dettagliata
+    # --------------------------------------------------------
+
+    preview_columns = [
+        column
+        for column in [
+            "Tipo_Asset",
+            "ISIN",
+            "Descrizione",
+            "Stato",
+            "Variazioni"
+        ]
+        if column in bank_preview.columns
+    ]
+
+    st.sidebar.dataframe(
+        bank_preview[
+            preview_columns
+        ],
+        use_container_width=True,
+        hide_index=True
+    )
+
+    # --------------------------------------------------------
+    # Conferma aggiornamento reale
+    # --------------------------------------------------------
+
+    st.sidebar.divider()
+
+    bank_import_confirmed = st.sidebar.checkbox(
+        "Confermo di voler aggiornare il portafoglio",
+        key="bank_import_confirmation"
+    )
+
+    confirm_bank_import = st.sidebar.button(
+        "✅ Conferma aggiornamento portafoglio",
+        key="bank_import_execute",
+        disabled=(
+            not bank_validation.get("ready", False)
+            or not bank_import_confirmed
+        )
+    )
+
+    if confirm_bank_import:
+
+        try:
+
+            transaction_result = (
+                execute_prepared_bank_import(
+                    preparation=bank_preparation,
+                    target_files=st.session_state[
+                        "bank_import_target_files"
+                    ],
+                    backup_root=(
+                        ROOT
+                        / "data"
+                        / "backup_bank_import"
+                    ),
+                    cleanup_temp=True
+                )
+            )
+
+            # La transazione è terminata correttamente.
+            # Eliminiamo la preparazione dalla sessione
+            # per impedire una seconda esecuzione accidentale.
+
+            st.session_state.pop(
+                "bank_import_preparation",
+                None
+            )
+
+            st.session_state.pop(
+                "bank_import_target_files",
+                None
+            )
+
+            st.session_state[
+                "bank_import_success"
+            ] = (
+                "Portafoglio aggiornato correttamente. "
+                "Backup creato prima dell'aggiornamento."
+            )
+
+            st.rerun()
+
+        except Exception as exc:
+
+            st.sidebar.error(
+                "Aggiornamento non completato: "
+                f"{exc}"
+            )
+
 holder_options = ["Tutti"]
 
 if not holders.empty and "Titolare" in holders.columns:

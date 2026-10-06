@@ -7,3 +7,4 @@ venv/
 .vscode/
 data/backup/
 import/
+data/backup_bank_import/
