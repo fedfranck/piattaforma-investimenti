@@ -3295,3 +3295,183 @@ def commit_import_transaction(
         "backup_dir": backup_dir,
         "replaced_keys": replaced_keys
     }
+
+
+def execute_prepared_bank_import(
+    preparation,
+    target_files,
+    backup_root,
+    cleanup_temp=True
+):
+    """
+    Esegue una importazione bancaria già preparata
+    e validata.
+
+    Questa funzione rappresenta la FASE B del processo:
+
+    FASE A:
+        prepare_complete_bank_import()
+
+    FASE B:
+        execute_prepared_bank_import()
+
+    La funzione:
+    - accetta esclusivamente una preparazione valida;
+    - verifica la presenza dei 6 file temporanei;
+    - esegue la transazione atomica;
+    - crea il backup dei 6 file reali;
+    - aggiorna i 5 portafogli e lo storico;
+    - opzionalmente elimina la directory temporanea
+      dopo il completamento della transazione.
+
+    La conferma dell'utente deve essere gestita
+    dall'interfaccia prima di chiamare questa funzione.
+    """
+
+    # --------------------------------------------------
+    # 1. Validazione struttura della preparazione
+    # --------------------------------------------------
+
+    if not isinstance(preparation, dict):
+        raise TypeError(
+            "preparation deve essere un dizionario"
+        )
+
+    required_keys = {
+        "validation",
+        "temp_dir",
+        "temp_files"
+    }
+
+    missing_keys = (
+        required_keys
+        - set(preparation.keys())
+    )
+
+    if missing_keys:
+        raise ValueError(
+            "Preparazione incompleta. "
+            "Chiavi mancanti: "
+            + ", ".join(
+                sorted(missing_keys)
+            )
+        )
+
+    # --------------------------------------------------
+    # 2. La preparazione deve essere valida
+    # --------------------------------------------------
+
+    validation = preparation[
+        "validation"
+    ]
+
+    if not isinstance(validation, dict):
+        raise TypeError(
+            "validation deve essere un dizionario"
+        )
+
+    if not validation.get(
+        "ready",
+        False
+    ):
+        raise ValueError(
+            "Importazione non eseguibile: "
+            "la preparazione non è valida."
+        )
+
+    # --------------------------------------------------
+    # 3. Verifica dei 6 file temporanei
+    # --------------------------------------------------
+
+    temp_files = preparation[
+        "temp_files"
+    ]
+
+    expected_keys = {
+        "bonds",
+        "certificates",
+        "funds",
+        "etfs",
+        "stocks",
+        "history"
+    }
+
+    if not isinstance(temp_files, dict):
+        raise TypeError(
+            "temp_files deve essere un dizionario"
+        )
+
+    if set(temp_files.keys()) != expected_keys:
+        raise ValueError(
+            "temp_files deve contenere esattamente: "
+            "bonds, certificates, funds, etfs, "
+            "stocks, history"
+        )
+
+    for key in expected_keys:
+
+        temp_file = Path(
+            temp_files[key]
+        )
+
+        if not temp_file.exists():
+            raise FileNotFoundError(
+                f"File temporaneo non trovato "
+                f"per {key}: {temp_file}"
+            )
+
+    # --------------------------------------------------
+    # 4. Verifica directory temporanea
+    # --------------------------------------------------
+
+    temp_dir = Path(
+        preparation["temp_dir"]
+    )
+
+    if not temp_dir.exists():
+        raise FileNotFoundError(
+            "Directory temporanea non trovata: "
+            f"{temp_dir}"
+        )
+
+    # --------------------------------------------------
+    # 5. Esecuzione della transazione
+    # --------------------------------------------------
+
+    transaction_result = (
+        commit_import_transaction(
+            temp_files=temp_files,
+            target_files=target_files,
+            backup_root=backup_root
+        )
+    )
+
+    # --------------------------------------------------
+    # 6. Pulizia temporanei SOLO dopo successo
+    # --------------------------------------------------
+
+    temp_removed = False
+
+    if cleanup_temp:
+
+        shutil.rmtree(
+            temp_dir,
+            ignore_errors=False
+        )
+
+        temp_removed = True
+
+    # --------------------------------------------------
+    # 7. Risultato finale
+    # --------------------------------------------------
+
+    return {
+        "success": True,
+        "backup_dir": transaction_result[
+            "backup_dir"
+        ],
+        "replaced_keys": transaction_result[
+            "replaced_keys"
+        ],
+        "temp_removed": temp_removed
+    }
