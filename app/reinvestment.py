@@ -1,6 +1,43 @@
 import pandas as pd
 import numpy as np
+def calculate_net_cashflow(
+    nominale,
+    cedola_percentuale,
+    aliquota_fiscale=0.125
+):
+    """
+    Calcola il flusso cedolare netto annuo teorico.
 
+    nominale: valore nominale dei titoli acquistati
+    cedola_percentuale: tasso cedolare annuo in percentuale
+    aliquota_fiscale: aliquota sulle cedole (0.125 = 12,5%)
+
+    Non include ratei, commissioni, imposte sul patrimonio
+    o plus/minusvalenze.
+    """
+
+    nominale = float(nominale)
+    cedola_percentuale = float(cedola_percentuale)
+    aliquota_fiscale = float(aliquota_fiscale)
+
+    if nominale < 0:
+        raise ValueError("Il nominale non può essere negativo")
+
+    if cedola_percentuale < 0:
+        raise ValueError("La cedola non può essere negativa")
+
+    if not 0 <= aliquota_fiscale <= 1:
+        raise ValueError("Aliquota fiscale non valida")
+
+    cashflow_lordo = (
+        nominale * cedola_percentuale / 100
+    )
+
+    cashflow_netto = (
+        cashflow_lordo * (1 - aliquota_fiscale)
+    )
+
+    return cashflow_netto
 
 def allocate_lots(
     candidates,
@@ -96,31 +133,241 @@ def allocate_lots(
     # Secondo giro:
     # utilizza la liquidità residua seguendo l'ordine
     # determinato dal profilo.
-    while True:
 
-        acquistato = False
+    # Secondo giro: distribuzione dei lotti residui
+    if profile == "ladder":
+        # Nel profilo ladder privilegia il titolo
+        # con il minore capitale già allocato.
+        while True:
+            acquistato = False
 
-        for i in range(len(allocazioni)):
+            ordine = sorted(
+                range(len(allocazioni)),
+                key=lambda i: (
+                    allocazioni[i]["Capitale_Investito"],
+                    i
+                )
+            )
 
-            costo_lotto = float(
-                allocazioni[i]["Prezzo"]
+            for i in ordine:
+                costo_lotto = (
+                    float(allocazioni[i]["Prezzo"])
+                    * LOTTO_NOMINALE
+                    / 100
+                )
+
+                if costo_lotto <= capitale_residuo:
+                    allocazioni[i]["Lotti_Allocati"] += 1
+                    allocazioni[i]["Nominale_Allocato"] += LOTTO_NOMINALE
+                    allocazioni[i]["Capitale_Investito"] += costo_lotto
+
+                    capitale_residuo -= costo_lotto
+                    acquistato = True
+                    break
+
+            if not acquistato:
+                break
+
+    else:
+        # Limite di concentrazione per cash_flow e rendimento.
+        # Il 50% è calcolato sul capitale iniziale.
+        limite_concentrazione = float(amount) * 0.50
+
+        while True:
+            acquistato = False
+
+            for i in range(len(allocazioni)):
+                costo_lotto = (
+                    float(allocazioni[i]["Prezzo"])
+                    * LOTTO_NOMINALE
+                    / 100
+                )
+
+                nuovo_investimento = (
+                    allocazioni[i]["Capitale_Investito"]
+                    + costo_lotto
+                )
+
+                if (
+                    costo_lotto <= capitale_residuo
+                    and nuovo_investimento
+                    <= limite_concentrazione
+                ):
+                    allocazioni[i]["Lotti_Allocati"] += 1
+                    allocazioni[i]["Nominale_Allocato"] += LOTTO_NOMINALE
+                    allocazioni[i]["Capitale_Investito"] += costo_lotto
+
+                    capitale_residuo -= costo_lotto
+                    acquistato = True
+                    break
+
+            if not acquistato:
+                break
+    # Controllo finale della concentrazione effettiva.
+    # Si applica solo a cash_flow e rendimento.
+    if profile in ("cash_flow", "rendimento") and len(allocazioni) >= 3:
+        while True:
+            totale_investito = sum(
+                posizione["Capitale_Investito"]
+                for posizione in allocazioni
+            )
+
+            if totale_investito <= 0:
+                break
+
+            indice_massimo = max(
+                range(len(allocazioni)),
+                key=lambda i: allocazioni[i]["Capitale_Investito"]
+            )
+
+            posizione = allocazioni[indice_massimo]
+
+            peso_massimo = (
+                posizione["Capitale_Investito"] / totale_investito
+            )
+
+            if peso_massimo <= 0.50 + 1e-9:
+                break
+
+            if posizione["Lotti_Allocati"] <= 1:
+                break
+
+            costo_lotto = (
+                float(posizione["Prezzo"])
                 * LOTTO_NOMINALE
                 / 100
             )
 
-            if costo_lotto <= capitale_residuo:
+            posizione["Lotti_Allocati"] -= 1
+            posizione["Nominale_Allocato"] -= LOTTO_NOMINALE
+            posizione["Capitale_Investito"] -= costo_lotto
+            capitale_residuo += costo_lotto
 
-                allocazioni[i]["Lotti_Allocati"] += 1
-                allocazioni[i]["Nominale_Allocato"] += LOTTO_NOMINALE
-                allocazioni[i]["Capitale_Investito"] += costo_lotto
+    # Recupera la liquidità residua senza violare il limite
+    # del 50% sul capitale effettivamente investito.
+    if profile in ("cash_flow", "rendimento") and len(allocazioni) >= 3:
+        while True:
+            totale_investito = sum(
+                posizione["Capitale_Investito"]
+                for posizione in allocazioni
+            )
 
-                capitale_residuo -= costo_lotto
+            acquistato = False
 
-                acquistato = True
+            # Mantiene la priorità originale dei candidati.
+            for posizione in allocazioni:
+                costo_lotto = (
+                    float(posizione["Prezzo"])
+                    * LOTTO_NOMINALE
+                    / 100
+                )
+
+                if costo_lotto > capitale_residuo:
+                    continue
+
+                nuovo_totale = totale_investito + costo_lotto
+                nuovo_capitale = (
+                    posizione["Capitale_Investito"] + costo_lotto
+                )
+
+                # Verifica tutte le posizioni dopo l'acquisto.
+                peso_massimo = max(
+                    (
+                        nuovo_capitale
+                        if altra is posizione
+                        else altra["Capitale_Investito"]
+                    ) / nuovo_totale
+                    for altra in allocazioni
+                )
+
+                if peso_massimo <= 0.50 + 1e-9:
+                    posizione["Lotti_Allocati"] += 1
+                    posizione["Nominale_Allocato"] += LOTTO_NOMINALE
+                    posizione["Capitale_Investito"] += costo_lotto
+                    capitale_residuo -= costo_lotto
+                    acquistato = True
+                    break
+
+            if not acquistato:
                 break
 
-        if not acquistato:
-            break
+    # Ottimizzazione locale: prova a scambiare un lotto
+    # tra due posizioni per investire più capitale.
+    if profile in ("cash_flow", "rendimento") and len(allocazioni) >= 3:
+        while True:
+            miglior_scambio = None
+            miglior_incremento = 0.0
+
+            totale_investito = sum(
+                p["Capitale_Investito"] for p in allocazioni
+            )
+
+            for i, origine in enumerate(allocazioni):
+                if origine["Lotti_Allocati"] <= 1:
+                    continue
+
+                costo_origine = (
+                    float(origine["Prezzo"]) * LOTTO_NOMINALE / 100
+                )
+
+                for j, destinazione in enumerate(allocazioni):
+                    if i == j:
+                        continue
+
+                    costo_destinazione = (
+                        float(destinazione["Prezzo"])
+                        * LOTTO_NOMINALE / 100
+                    )
+
+                    incremento = costo_destinazione - costo_origine
+
+                    if (
+                        incremento <= miglior_incremento + 1e-9
+                        or incremento > capitale_residuo + 1e-9
+                    ):
+                        continue
+
+                    nuovo_totale = totale_investito + incremento
+
+                    if nuovo_totale <= 0:
+                        continue
+
+                    peso_massimo = max(
+                        (
+                            p["Capitale_Investito"]
+                            - (costo_origine if k == i else 0)
+                            + (costo_destinazione if k == j else 0)
+                        ) / nuovo_totale
+                        for k, p in enumerate(allocazioni)
+                    )
+
+                    if peso_massimo <= 0.50 + 1e-9:
+                        miglior_scambio = (i, j, incremento)
+                        miglior_incremento = incremento
+
+            if miglior_scambio is None:
+                break
+
+            i, j, incremento = miglior_scambio
+
+            costo_origine = (
+                float(allocazioni[i]["Prezzo"])
+                * LOTTO_NOMINALE / 100
+            )
+            costo_destinazione = (
+                float(allocazioni[j]["Prezzo"])
+                * LOTTO_NOMINALE / 100
+            )
+
+            allocazioni[i]["Lotti_Allocati"] -= 1
+            allocazioni[i]["Nominale_Allocato"] -= LOTTO_NOMINALE
+            allocazioni[i]["Capitale_Investito"] -= costo_origine
+
+            allocazioni[j]["Lotti_Allocati"] += 1
+            allocazioni[j]["Nominale_Allocato"] += LOTTO_NOMINALE
+            allocazioni[j]["Capitale_Investito"] += costo_destinazione
+
+            capitale_residuo -= incremento
 
     result = pd.DataFrame(allocazioni)
 
@@ -325,6 +572,19 @@ def reinvestment_candidates(
         )
     else:
         df["CashFlow_Annuale"] = 0.0
+    # Cash flow netto annuo teorico dei BTP italiani
+    df["CashFlow_Netto_Annuale"] = df.apply(
+        lambda row: calculate_net_cashflow(
+            nominale=row["Nominale_Acquistabile"],
+            cedola_percentuale=(
+                row["Cedola"]
+                if pd.notna(row["Cedola"])
+                else 0.0
+            ),
+            aliquota_fiscale=0.125
+        ),
+        axis=1
+)
     # Capitale effettivamente investito
     if "Prezzo" in df.columns:
         df["Capitale_Investito"] = (
@@ -491,6 +751,7 @@ def reinvestment_candidates(
             "Rating",
             "Cedola_Reinvestita",
             "CashFlow_Annuale",
+            "CashFlow_Netto_Annuale",
             "Score_Yield",
             "Score_Diversificazione",
             "Score_Rating",
