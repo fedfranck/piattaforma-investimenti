@@ -757,6 +757,28 @@ r4.metric(
     f"€ {kpis['annual_coupon'] / 12:,.2f}"
 )
 
+# Controllo completezza dei dati cedolari
+if not bonds.empty:
+    totale_posizioni = len(bonds)
+
+    posizioni_senza_cedola = (
+        bonds["Flusso_Cedolare_Annuo"].isna().sum()
+    )
+
+    posizioni_complete = totale_posizioni - posizioni_senza_cedola
+
+    if posizioni_senza_cedola > 0:
+        st.warning(
+            f"Reddito cedolare parziale: "
+            f"€ {kpis['annual_coupon']:,.2f} netti annui stimati. "
+            f"Il calcolo comprende {posizioni_complete} "
+            f"posizioni su {totale_posizioni}. "
+            f"Mancano i dati cedolari di "
+            f"{posizioni_senza_cedola} posizioni obbligazionarie. "
+            f"Anche lo yield cedolare e il cash flow medio "
+            f"mensile visualizzati sono pertanto parziali."
+        )
+
 st.divider()
 t1,t2,t3,t4,t5,t6 = st.tabs(["Dashboard","Bond","Certificates","Cedole","Rotazioni","Dati"])
 
@@ -998,6 +1020,41 @@ with t4:
                         "Capitale_Investito"
                     ]
                 ].copy()
+                totale_allocato = allocation_display[
+                    "Capitale_Investito"
+                ].sum()
+
+                allocation_display["Peso_%"] = (
+                    allocation_display["Capitale_Investito"]
+                    / totale_allocato * 100
+                ).round(2) if totale_allocato > 0 else 0.0
+                # Recupera la cedola annua dal catalogo BTP.
+                cedole_catalogo = catalog[
+                    ["ISIN", "Cedola"]
+                ].drop_duplicates(subset=["ISIN"])
+
+                allocation_display = allocation_display.merge(
+                    cedole_catalogo,
+                    on="ISIN",
+                    how="left",
+                    validate="many_to_one"
+                )
+
+                allocation_display["Cedola"] = pd.to_numeric(
+                    allocation_display["Cedola"],
+                    errors="coerce"
+                )
+
+                allocation_display["Cedola_Annua_Lorda"] = (
+                    allocation_display["Nominale_Allocato"]
+                    * allocation_display["Cedola"]
+                    / 100
+                ).round(2)
+
+                allocation_display["Cedola_Annua_Netta"] = (
+                    allocation_display["Cedola_Annua_Lorda"]
+                    * (1 - 0.125)
+                ).round(2)
 
                 st.dataframe(
                     allocation_display,
@@ -1034,7 +1091,41 @@ with t4:
                     "Nominale totale",
                     f"€ {nominale_totale:,.0f}"
                 )
+                cedole_lorde = allocation_display[
+                    "Cedola_Annua_Lorda"
+                ].sum(min_count=1)
 
+                cedole_nette = allocation_display[
+                    "Cedola_Annua_Netta"
+                ].sum(min_count=1)
+
+                reddito_mensile_medio = cedole_nette / 12
+
+                st.subheader("Reddito cedolare previsto")
+
+                r1, r2, r3 = st.columns(3)
+
+                r1.metric(
+                    "Cedole annue lorde",
+                    f"€ {cedole_lorde:,.2f}"
+                )
+
+                r2.metric(
+                    "Cedole annue nette",
+                    f"€ {cedole_nette:,.2f}"
+                )
+
+                r3.metric(
+                    "Media mensile netta",
+                    f"€ {reddito_mensile_medio:,.2f}"
+                )
+
+                st.caption(
+                    "La media mensile è un valore equivalente: "
+                    "le cedole sono pagate alle scadenze previste "
+                    "dai singoli titoli. Calcoli teorici al netto "
+                    "dell'imposta del 12,5%, escluse commissioni."
+                )
             st.divider()
             display_columns = [
                 "ISIN",

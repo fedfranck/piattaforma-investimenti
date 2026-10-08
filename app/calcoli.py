@@ -18,7 +18,32 @@ def enrich_bonds(df):
     df["Valore_Attuale_Calc"]=q*pa/100
     df["Plusvalenza_Calc"]=df["Valore_Attuale_Calc"]-df["Valore_Carico_Calc"]
     df["Plusvalenza_Percentuale_Calc"]=np.where(df["Valore_Carico_Calc"]!=0,df["Plusvalenza_Calc"]/df["Valore_Carico_Calc"]*100,0)
-    coupon=_num(df,"Cedola_Netta_Annua")
+    # Recupera i tassi cedolari noti per lo stesso ISIN
+    coupon = pd.to_numeric(
+        df["Cedola_Netta_Annua"], errors="coerce"
+    )
+
+    tassi = pd.to_numeric(
+        df["Cedola_Percentuale"], errors="coerce"
+    )
+
+    tassi_per_isin = (
+        pd.DataFrame({
+            "ISIN": df["ISIN"],
+            "Tasso": tassi
+        })
+        .groupby("ISIN")["Tasso"]
+        .first()
+    )
+
+    tassi_recuperati = df["ISIN"].map(tassi_per_isin)
+
+    # Calcola soltanto gli importi mancanti
+    coupon_stimato = (
+        q * tassi_recuperati / 100 * 0.875
+    )
+
+    coupon = coupon.fillna(coupon_stimato)
     df["Flusso_Cedolare_Annuo"]=coupon
     df["Yield_On_Cost"]=np.where(df["Valore_Carico_Calc"]!=0,coupon/df["Valore_Carico_Calc"]*100,0)
     dates=pd.to_datetime(df.get("Data_Scadenza"),errors="coerce")
