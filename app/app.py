@@ -26,6 +26,11 @@ from reinvestment import (
     build_reinvestment_allocation
 )
 
+from calendario_cedole import (
+    genera_calendario_cedole,
+    riepilogo_mensile_cedole
+)
+
 st.set_page_config(page_title="Piattaforma Investimenti", page_icon="📊", layout="wide")
 
 def load_data():
@@ -663,6 +668,28 @@ if selected_holder != "Tutti":
     if "Titolare" in bonds: bonds = bonds[bonds["Titolare"].astype(str) == selected_holder].copy()
     if "Titolare" in liquidity: liquidity = liquidity[liquidity["Titolare"].astype(str) == selected_holder].copy()
 
+# Recupera i tassi cedolari dall'anagrafica tramite ISIN
+anagrafica_cedole = pd.read_csv(
+    ROOT / "data" / "ANAGRAFICA_CEDOLE_BOND.csv"
+)
+
+if not bonds.empty:
+    tassi_anagrafica = anagrafica_cedole.set_index("ISIN")[
+        "Cedola_Percentuale"
+    ]
+
+    if "Cedola_Percentuale" not in bonds.columns:
+        bonds["Cedola_Percentuale"] = pd.NA
+
+    bonds["Cedola_Percentuale"] = pd.to_numeric(
+        bonds["Cedola_Percentuale"], errors="coerce"
+    ).fillna(
+        pd.to_numeric(
+            bonds["ISIN"].map(tassi_anagrafica),
+            errors="coerce"
+        )
+    )
+
 bonds = enrich_bonds(bonds)
 
 # Classificazione delle scadenze per analisi della concentrazione temporale
@@ -700,6 +727,22 @@ try:
 except Exception:
     pass
 forecast = coupon_forecast(bonds, coupons)
+
+# Calendario cedolare V3: importi lordi e netti stimati
+
+
+calendario_v3 = genera_calendario_cedole(
+    bonds,
+    anagrafica_cedole,
+    mesi=12
+)
+
+riepilogo_cedole_v3 = riepilogo_mensile_cedole(
+    calendario_v3,
+    pd.Timestamp.today().normalize(),
+    mesi=12
+)
+
 
 st.sidebar.divider()
 st.sidebar.metric("Posizioni Bond", len(bonds))
@@ -951,15 +994,62 @@ with t3:
 with t4:
     st.subheader("Flussi cedolari")
 
+    st.markdown("### Calendario cedolare V3")
+
+    totale_lordo_v3 = calendario_v3["Cedola_Lorda"].sum()
+    totale_netto_v3 = calendario_v3["Cedola_Netta_Stimata"].sum()
+
+    col_lordo, col_netto = st.columns(2)
+
+    col_lordo.metric(
+        "Cedole lorde previste (12 mesi)",
+        f"€ {totale_lordo_v3:,.2f}"
+    )
+
+    col_netto.metric(
+        "Cedole nette stimate (12 mesi)",
+        f"€ {totale_netto_v3:,.2f}"
+    )
+
+    st.caption(
+        "Importi previsionali. Le aliquote fiscali dei titoli "
+        "esteri e alcune date cedolari richiedono conferma."
+    )
+
+
     st.metric("Flusso annuo teorico", f"€ {kpis['annual_coupon']:,.2f}")
 
     if not forecast.empty:
         forecast2 = forecast.copy()
-        ...
     else:
         st.info("Calendario cedole non ancora valorizzato.")
 
     st.divider()
+    st.subheader("Distribuzione mensile delle cedole")
+
+    if not calendario_v3.empty:
+        grafico_cedole = calendario_v3.copy()
+        grafico_cedole["Mese"] = (
+            pd.to_datetime(grafico_cedole["Data_Cedola"])
+            .dt.to_period("M")
+            .astype(str)
+        )
+
+        flussi_mensili = (
+            grafico_cedole.groupby("Mese", as_index=False)[
+                ["Cedola_Lorda", "Cedola_Netta_Stimata"]
+            ]
+            .sum()
+        )
+
+        st.bar_chart(
+            flussi_mensili.set_index("Mese")[
+                ["Cedola_Netta_Stimata", "Cedola_Lorda"]
+            ]
+        )
+    else:
+        st.info("Nessuna cedola prevista nel periodo.")
+
     st.subheader("Simulazione reinvestimento cedole")
 
     profile_options = {
