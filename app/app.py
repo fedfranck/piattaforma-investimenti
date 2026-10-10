@@ -1027,28 +1027,75 @@ with t4:
     st.divider()
     st.subheader("Distribuzione mensile delle cedole")
 
+    # Mostra tutti i mesi del periodo, anche quelli senza incassi
+    data_inizio_grafico = pd.Timestamp.today().normalize()
+    data_fine_grafico = data_inizio_grafico + pd.DateOffset(months=12)
+
+    mesi_grafico = pd.period_range(
+        start=data_inizio_grafico.to_period("M"),
+        end=data_fine_grafico.to_period("M"),
+        freq="M"
+    ).astype(str)
+
     if not calendario_v3.empty:
         grafico_cedole = calendario_v3.copy()
         grafico_cedole["Mese"] = (
-            pd.to_datetime(grafico_cedole["Data_Cedola"])
+            pd.to_datetime(grafico_cedole["Data"])
             .dt.to_period("M")
             .astype(str)
         )
 
         flussi_mensili = (
-            grafico_cedole.groupby("Mese", as_index=False)[
+            grafico_cedole.groupby("Mese")[
                 ["Cedola_Lorda", "Cedola_Netta_Stimata"]
             ]
             .sum()
+            .reindex(mesi_grafico, fill_value=0)
         )
 
         st.bar_chart(
-            flussi_mensili.set_index("Mese")[
-                ["Cedola_Netta_Stimata", "Cedola_Lorda"]
-            ]
+            flussi_mensili,
+            x_label="Mese",
+            y_label="Cedole (€)",
+            stack=False
         )
     else:
         st.info("Nessuna cedola prevista nel periodo.")
+
+    st.subheader("Calendario dettagliato dei pagamenti")
+
+    if not calendario_v3.empty:
+        dettaglio_cedole = calendario_v3[
+            [
+                "Data", "ISIN", "Titolare", "Descrizione",
+                "Cedola_Lorda", "Cedola_Netta_Stimata", "Stato"
+            ]
+        ].copy()
+
+        dettaglio_cedole["Data"] = pd.to_datetime(
+            dettaglio_cedole["Data"]
+        )
+
+        st.dataframe(
+            dettaglio_cedole.sort_values("Data"),
+            column_config={
+                "Data": st.column_config.DateColumn(
+                    "Data pagamento", format="DD/MM/YYYY"
+                ),
+                "Cedola_Lorda": st.column_config.NumberColumn(
+                    "Cedola lorda (€)", format="%.2f"
+                ),
+                "Cedola_Netta_Stimata": st.column_config.NumberColumn(
+                    "Cedola netta stimata (€)", format="%.2f"
+                ),
+            },
+            hide_index=True,
+            use_container_width=True
+        )
+    else:
+        st.info("Nessun pagamento cedolare previsto nel periodo.")
+
+    st.divider()
 
     st.subheader("Simulazione reinvestimento cedole")
 
