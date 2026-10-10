@@ -1,14 +1,14 @@
-ISIN,Cedola_Percentuale,Frequenza_Cedola,Data_Prossima_Cedola,Data_Scadenza,Fonte,Data_Verifica
-ES0000012M93,4.0,Annuale,2026-10-31,2054-10-31,Tesoro.es; Borsa Italiana; Teleborsa,2026-10-08
-FR0010870956,4.0,Annuale,2027-04-25,2060-04-25,Agence France Tresor - aft.gouv.fr,2026-10-08
-FR0014016CV2,4.4,Annuale,2027-05-25,2057-05-25,Agence France Tresor - aft.gouv.fr,2026-10-08
-IT0004286966,5.0,Semestrale,2027-02-01,2039-08-01,Calendario cedolare - da confermare,
-IT0004923998,4.75,Semestrale,2027-03-01,2044-09-01,BOND_PORTAFOGLIO.csv - da verificare,
-IT0005273013,3.45,Semestrale,2027-03-01,2048-03-01,BOND_PORTAFOGLIO.csv - da verificare,
-IT0005530032,4.45,Semestrale,2027-03-01,2043-09-01,BOND_PORTAFOGLIO.csv - da verificare,
-IT0005534141,4.5,Semestrale,2027-04-01,2053-10-01,BOND_PORTAFOGLIO.csv - ricorrenza semestrale da confermare,
-IT0005544082,4.35,Semestrale,2026-11-01,2033-11-01,BOND_PORTAFOGLIO.csv - da verificare,
-IT0005611741,4.3,Semestrale,2027-04-01,2054-10-01,Calendario cedolare - da confermare,
-XS2538441598,6.625,Annuale,2027-09-27,2029-09-27,Vorvel; BRD Romania,2026-10-08
-XS2680932907,5.375,Annuale,2027-09-12,2033-09-12,Borsa Italiana - calendario da confermare,2026-10-08
-XS2971937672,4.875,Annuale,2027-03-22,2040-03-22,Borsa Italiana - calendario da confermare,2026-10-08
+ISIN,Cedola_Percentuale,Frequenza_Cedola,Data_Prossima_Cedola,Data_Scadenza,Fonte,Data_Verifica,Aliquota_Fiscale
+ES0000012M93,4.0,Annuale,2026-10-31,2054-10-31,Tesoro.es; Borsa Italiana; Teleborsa,2026-10-08,0.125
+FR0010870956,4.0,Annuale,2027-04-25,2060-04-25,Agence France Tresor - aft.gouv.fr,2026-10-08,0.125
+FR0014016CV2,4.4,Annuale,2027-05-25,2057-05-25,Agence France Tresor - aft.gouv.fr,2026-10-08,0.125
+IT0004286966,5.0,Semestrale,2027-02-01,2039-08-01,Calendario cedolare - da confermare,,0.125
+IT0004923998,4.75,Semestrale,2027-03-01,2044-09-01,BOND_PORTAFOGLIO.csv - da verificare,,0.125
+IT0005273013,3.45,Semestrale,2027-03-01,2048-03-01,BOND_PORTAFOGLIO.csv - da verificare,,0.125
+IT0005530032,4.45,Semestrale,2027-03-01,2043-09-01,BOND_PORTAFOGLIO.csv - da verificare,,0.125
+IT0005534141,4.5,Semestrale,2027-04-01,2053-10-01,BOND_PORTAFOGLIO.csv - ricorrenza semestrale da confermare,,0.125
+IT0005544082,4.35,Semestrale,2026-11-01,2033-11-01,BOND_PORTAFOGLIO.csv - da verificare,,0.125
+IT0005611741,4.3,Semestrale,2027-04-01,2054-10-01,Calendario cedolare - da confermare,,0.125
+XS2538441598,6.625,Annuale,2027-09-27,2029-09-27,Vorvel; BRD Romania,2026-10-08,0.125
+XS2680932907,5.375,Annuale,2027-09-12,2033-09-12,Borsa Italiana - calendario da confermare,2026-10-08,0.125
+XS2971937672,4.875,Annuale,2027-03-22,2040-03-22,Borsa Italiana - calendario da confermare,2026-10-08,0.125
